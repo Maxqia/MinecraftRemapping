@@ -1,0 +1,183 @@
+From 615bf4ac496ba23aafa3e5c29811f40eef63102a Mon Sep 17 00:00:00 2001
+From: Max Qian <public@maxqia.com>
+Date: Thu, 4 Aug 2016 17:41:53 -0700
+Subject: [PATCH] Use MCP mappings for Pore and Sponge IT
+ W!@#OJSOKAORrKKS!?#!?!?@!?
+
+---
+ .../java/us/myles/ViaVersion/ViaVersionPlugin.java     | 16 ++++++++--------
+ .../protocols/protocol1_9to1_8/Protocol1_9TO1_8.java   |  2 +-
+ .../protocols/protocol1_9to1_8/ViaIdleThread.java      |  4 ++--
+ .../protocol1_9to1_8/storage/ClientChunks.java         | 18 +++++++++---------
+ .../java/us/myles/ViaVersion/util/ReflectionUtil.java  | 13 +++++++------
+ 5 files changed, 27 insertions(+), 26 deletions(-)
+
+diff --git a/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java b/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java
+index 8471af2..fe9217a 100644
+--- a/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java
++++ b/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java
+@@ -158,14 +158,14 @@ public class ViaVersionPlugin extends JavaPlugin implements ViaVersionAPI {
+ 
+     public void gatherProtocolVersion() {
+         try {
+-            Class<?> serverClazz = ReflectionUtil.nms("MinecraftServer");
+-            Object server = ReflectionUtil.invokeStatic(serverClazz, "getServer");
+-            Class<?> pingClazz = ReflectionUtil.nms("ServerPing");
++            Class<?> serverClazz = ReflectionUtil.nms("server.MinecraftServer");
++            Object server = ReflectionUtil.invokeStatic(serverClazz, "func_71276_C"); //getServer
++            Class<?> pingClazz = ReflectionUtil.nms("network.ServerStatusResponse"); //ServerPing
+             Object ping = null;
+             // Search for ping method
+             for (Field f : serverClazz.getDeclaredFields()) {
+                 if (f.getType() != null) {
+-                    if (f.getType().getSimpleName().equals("ServerPing")) {
++                    if (f.getType().getSimpleName().equals("ServerStatusResponse")) { //ServerPing
+                         f.setAccessible(true);
+                         ping = f.get(server);
+                     }
+@@ -175,7 +175,7 @@ public class ViaVersionPlugin extends JavaPlugin implements ViaVersionAPI {
+                 Object serverData = null;
+                 for (Field f : pingClazz.getDeclaredFields()) {
+                     if (f.getType() != null) {
+-                        if (f.getType().getSimpleName().endsWith("ServerData")) {
++                        if (f.getType().getSimpleName().endsWith("MinecraftProtocolVersionIdentifier")) { //ServerData
+                             f.setAccessible(true);
+                             serverData = f.get(ping);
+                         }
+@@ -204,12 +204,12 @@ public class ViaVersionPlugin extends JavaPlugin implements ViaVersionAPI {
+     }
+ 
+     public Object getServerConnection() throws Exception {
+-        Class<?> serverClazz = ReflectionUtil.nms("MinecraftServer");
+-        Object server = ReflectionUtil.invokeStatic(serverClazz, "getServer");
++        Class<?> serverClazz = ReflectionUtil.nms("server.MinecraftServer");
++        Object server = ReflectionUtil.invokeStatic(serverClazz, "func_71276_C"); //getServer
+         Object connection = null;
+         for (Method m : serverClazz.getDeclaredMethods()) {
+             if (m.getReturnType() != null) {
+-                if (m.getReturnType().getSimpleName().equals("ServerConnection")) {
++                if (m.getReturnType().getSimpleName().equals("NetworkSystem")) { //ServerConnection
+                     if (m.getParameterTypes().length == 0) {
+                         connection = m.invoke(server);
+                     }
+diff --git a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java
+index 05cc8bc..95259e7 100644
+--- a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java
++++ b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java
+@@ -125,7 +125,7 @@ public class Protocol1_9TO1_8 extends Protocol {
+ 
+     @Override
+     public boolean isFiltered(Class packetClass) {
+-        return packetClass.getName().endsWith("PacketPlayOutMapChunkBulk");
++        return packetClass.getName().endsWith("S26PacketMapChunkBulk"); //PacketPlayOutMapChunkBulk
+     }
+ 
+     @Override
+diff --git a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java
+index c2498a4..f497fa2 100644
+--- a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java
++++ b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java
+@@ -34,7 +34,7 @@ public class ViaIdleThread extends BukkitRunnable {
+         this.portedPlayers = portedPlayers;
+         Class<?> idlePacketClass;
+         try {
+-            idlePacketClass = ReflectionUtil.nms("PacketPlayInFlying");
++            idlePacketClass = ReflectionUtil.nms("network.play.client.C03PacketPlayer"); //PacketPlayInFlying
+         } catch (ClassNotFoundException e) {
+             throw new RuntimeException("Couldn't find idle packet, help!", e);
+         }
+@@ -42,7 +42,7 @@ public class ViaIdleThread extends BukkitRunnable {
+             idlePacket = idlePacketClass.newInstance();
+             idlePacket2 = idlePacketClass.newInstance();
+ 
+-            Field flying = idlePacketClass.getDeclaredField("f");
++            Field flying = idlePacketClass.getDeclaredField("field_149474_g"); //f
+             flying.setAccessible(true);
+ 
+             flying.set(idlePacket2, true);
+diff --git a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java
+index 153b479..9677d42 100644
+--- a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java
++++ b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java
+@@ -27,8 +27,8 @@ public class ClientChunks extends StoredObject {
+ 
+     static {
+         try {
+-            mapChunkBulkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("PacketPlayOutMapChunkBulk"));
+-            mapChunkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("PacketPlayOutMapChunk"));
++            mapChunkBulkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("network.play.server.S26PacketMapChunkBulk")); //PacketPlayOutMapChunkBulk
++            mapChunkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("network.play.server.S21PacketChunkData")); //PacketPlayOutMapChunk
+             if (ViaVersion.getInstance().isSpigot()) {
+                 obfuscateRef = Class.forName("org.spigotmc.AntiXray").getMethod("obfuscate", int.class, int.class, int.class, byte[].class, ReflectionUtil.nms("World"));
+                 worldRef = ReflectionUtil.nms("World");
+@@ -52,9 +52,9 @@ public class ClientChunks extends StoredObject {
+     public List<Object> transformMapChunkBulk(Object packet) {
+         List<Object> list = Lists.newArrayList();
+         try {
+-            int[] xcoords = mapChunkBulkRef.getFieldValue("a", packet, int[].class);
+-            int[] zcoords = mapChunkBulkRef.getFieldValue("b", packet, int[].class);
+-            Object[] chunkMaps = mapChunkBulkRef.getFieldValue("c", packet, Object[].class);
++            int[] xcoords = mapChunkBulkRef.getFieldValue("field_149266_a", packet, int[].class); //a
++            int[] zcoords = mapChunkBulkRef.getFieldValue("field_149264_b", packet, int[].class); //b
++            Object[] chunkMaps = mapChunkBulkRef.getFieldValue("field_179755_c", packet, Object[].class); //c
+ 
+             if (ViaVersion.getConfig().isAntiXRay() && ViaVersion.getInstance().isSpigot()) { //Spigot anti-xray patch
+                 try {
+@@ -78,10 +78,10 @@ public class ClientChunks extends StoredObject {
+                 int z = zcoords[i];
+                 Object chunkMap = chunkMaps[i];
+                 Object chunkPacket = mapChunkRef.newInstance();
+-                mapChunkRef.setFieldValue("a", chunkPacket, x);
+-                mapChunkRef.setFieldValue("b", chunkPacket, z);
+-                mapChunkRef.setFieldValue("c", chunkPacket, chunkMap);
+-                mapChunkRef.setFieldValue("d", chunkPacket, true); // Chunk bulk chunks are always ground-up
++                mapChunkRef.setFieldValue("field_149284_a", chunkPacket, x); //a
++                mapChunkRef.setFieldValue("field_149282_b", chunkPacket, z); //b
++                mapChunkRef.setFieldValue("field_179758_c", chunkPacket, chunkMap); //c
++                mapChunkRef.setFieldValue("field_149279_g", chunkPacket, true); //d // Chunk bulk chunks are always ground-up
+                 bulkChunks.add(toLong(x, z)); // Store for later
+                 list.add(chunkPacket);
+             }
+diff --git a/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java b/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java
+index 307ae26..caab358 100644
+--- a/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java
++++ b/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java
+@@ -1,8 +1,9 @@
+ package us.myles.ViaVersion.util;
+ 
+ import com.google.common.collect.Maps;
+-import org.bukkit.Bukkit;
+ 
++import org.apache.commons.lang.NotImplementedException;
++import org.bukkit.Bukkit;
+ import java.lang.reflect.Field;
+ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
+@@ -11,19 +12,19 @@ import java.util.Collections;
+ import java.util.Map;
+ 
+ public class ReflectionUtil {
+-    private static String BASE = Bukkit.getServer().getClass().getPackage().getName();
+-    private static String NMS = BASE.replace("org.bukkit.craftbukkit", "net.minecraft.server");
++    //private static String BASE = Bukkit.getServer().getClass().getPackage().getName();
++    //private static String NMS = BASE.replace("org.bukkit.craftbukkit", "net.minecraft.server");
+ 
+     public static Class<?> nms(String className) throws ClassNotFoundException {
+-        return Class.forName(NMS + "." + className);
++        return Class.forName("net.minecraft." + className);
+     }
+ 
+     public static Class<?> obc(String className) throws ClassNotFoundException {
+-        return Class.forName(BASE + "." + className);
++        throw new NotImplementedException("CANTFIX");
+     }
+ 
+     public static String getVersion() {
+-        return BASE.substring(BASE.lastIndexOf('.') + 1);
++        throw new NotImplementedException("CANTFIX");
+     }
+ 
+     public static Object invokeStatic(Class<?> clazz, String method) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+-- 
+2.10.0
+

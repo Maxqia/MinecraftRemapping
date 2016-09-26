@@ -1,0 +1,1319 @@
+From 2ad579caafe36185f781ac4f814ef2ae2dc6b535 Mon Sep 17 00:00:00 2001
+From: Max Qian <public@maxqia.com>
+Date: Sun, 25 Sep 2016 19:56:09 -0700
+Subject: [PATCH] Sponge Specific Modifications
+
+---
+ build.gradle                                       | 42 +++++++++++++++++++---
+ src/org/spigotmc/LimitStream.java                  | 39 ++++++++++++++++++++
+ src/protocolsupport/api/chat/ChatAPI.java          |  9 +++--
+ .../api/chat/modifiers/HoverAction.java            | 18 +++++-----
+ src/protocolsupport/api/tab/TabAPI.java            |  6 ++--
+ src/protocolsupport/api/title/TitleAPI.java        |  7 ++--
+ src/protocolsupport/api/utils/IconUtils.java       |  2 +-
+ src/protocolsupport/commands/CommandHandler.java   |  4 +--
+ .../commands/ReloadCommandRemover.java             | 10 +++---
+ src/protocolsupport/injector/ServerInjector.java   | 10 +++---
+ .../injector/network/BasicInjector.java            |  6 ++--
+ .../injector/network/NettyInjector.java            |  4 +--
+ .../protocol/legacyremapper/LegacySound.java       |  5 +--
+ .../protocol/packet/ClientBoundPacket.java         |  7 ++--
+ .../protocol/packet/ServerBoundPacket.java         |  4 +--
+ .../packet/handler/AbstractHandshakeListener.java  | 25 ++++++++-----
+ .../packet/handler/AbstractLoginListener.java      | 14 ++++----
+ .../protocol/packet/handler/LoginListenerPlay.java | 16 +++++----
+ .../protocol/packet/handler/PlayerLookupUUID.java  | 18 +++++-----
+ .../protocol/packet/handler/StatusListener.java    | 26 ++++++++++----
+ .../packet/handler/common/LegacyLoginListener.java |  6 ++--
+ .../play/v_1_4__1_5__1_6/Explosion.java            |  2 --
+ .../clientbound/play/v_1_4__1_5__1_6/Map.java      |  2 --
+ .../v_1_4__1_5__1_6__1_7/BlockChangeMulti.java     |  2 --
+ .../play/v_1_4__1_5__1_6__1_7/PlayerInfo.java      |  2 --
+ .../play/v_1_6__1_7/EntitySetAttributes.java       |  3 --
+ .../middleimpl/clientbound/play/v_1_7/Map.java     |  2 --
+ .../clientbound/play/v_1_7__1_8/Explosion.java     |  2 --
+ .../clientbound/play/v_1_7__1_8/Statistics.java    |  2 --
+ .../play/v_1_8/EntitySetAttributes.java            |  3 --
+ .../middleimpl/clientbound/play/v_1_8/Map.java     |  2 --
+ .../clientbound/play/v_1_8/PlayerInfo.java         |  2 --
+ .../v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java    |  2 --
+ .../pipeline/initial/InitialPacketDecoder.java     |  1 +
+ .../ProtocolSupportPacketDataSerializer.java       | 12 ++++---
+ .../protocol/storage/ThrottleTracker.java          |  2 +-
+ .../server/container/ContainerEnchantTable.java    | 26 +++++++-------
+ src/protocolsupport/utils/Utils.java               | 19 ++++++++--
+ src/protocolsupport/utils/netty/ChannelUtils.java  |  4 ++-
+ 39 files changed, 235 insertions(+), 133 deletions(-)
+ create mode 100644 src/org/spigotmc/LimitStream.java
+
+diff --git a/build.gradle b/build.gradle
+index af6f8c5..53c9015 100644
+--- a/build.gradle
++++ b/build.gradle
+@@ -1,12 +1,32 @@
++buildscript {
++    repositories {
++        jcenter()
++        maven {
++            name = 'forge'
++            url = 'http://files.minecraftforge.net/maven'
++        }
++        maven {
++            name = 'minecrell'
++            url = 'http://repo.minecrell.net/releases'
++        }
++    }
++
++    dependencies {
++        classpath 'net.minecrell:VanillaGradle:2.0.3_1'
++        classpath 'net.minecraftforge.gradle:ForgeGradle:2.1-20160116.192356-17'
++    }
++}
+ plugins {
+     id 'java'
+     id 'de.undercouch.download' version '3.1.1'
+ }
++apply plugin: 'net.minecrell.vanilla.server.library'
+ 
+ group 'protocolsupport'
+ version '4.25.dev'
+ 
+-sourceCompatibility = 1.7
++sourceCompatibility = 1.8
++targetCompatibility = 1.8
+ 
+ compileJava.dependsOn("updateSpigot")
+ 
+@@ -20,11 +40,21 @@ sourceSets {
+ 
+ repositories {
+     mavenCentral()
++    maven {
++        name = 'sponge'
++        url = 'http://repo.spongepowered.org/maven'
++    }
++}
++
++minecraft {
++    version = '1.10.2'
++    mappings = 'snapshot_20160911'
+ }
+ 
+ dependencies {
++    compile 'org.spongepowered:spongevanilla:1.10.2-5.0.0-BETA-115'
+     compile files('buildprocessor/BuildProcessor.jar')
+-    compile files('build/spigot.jar')
++    compile files('build/PoreRT-1.0.0-SNAPSHOT.jar')
+ 
+     testCompile group: 'junit', name: 'junit', version: '4.12'
+ }
+@@ -37,10 +67,14 @@ jar {
+     version = null
+ }
+ 
++reobf.jar {
++    mappingType = 'SEARGE'
++}
++
+ import de.undercouch.gradle.tasks.download.Download
+ task updateSpigot(type: Download) {
+-    src 'http://download.true-games.org/minecraft/libs/ProtocolSupport/spigot.jar'
++    src 'https://jenkins.maxqia.com/job/PoreRT/lastSuccessfulBuild/artifact/build/libs/PoreRT-1.0.0-SNAPSHOT.jar'
+     dest buildDir
+     onlyIfNewer true
+     overwrite true
+-}
+\ No newline at end of file
++}
+diff --git a/src/org/spigotmc/LimitStream.java b/src/org/spigotmc/LimitStream.java
+new file mode 100644
+index 0000000..e9e9095
+--- /dev/null
++++ b/src/org/spigotmc/LimitStream.java
+@@ -0,0 +1,39 @@
++package org.spigotmc;
++
++import java.io.FilterInputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import net.minecraft.nbt.NBTSizeTracker;
++
++public class LimitStream extends FilterInputStream
++{
++
++    private final NBTSizeTracker limit;
++
++    public LimitStream(InputStream is, NBTSizeTracker limit)
++    {
++        super( is );
++        this.limit = limit;
++    }
++
++    @Override
++    public int read() throws IOException
++    {
++        limit.read( 8 );
++        return super.read();
++    }
++
++    @Override
++    public int read(byte[] b) throws IOException
++    {
++        limit.read( b.length * 8 );
++        return super.read( b );
++    }
++
++    @Override
++    public int read(byte[] b, int off, int len) throws IOException
++    {
++        limit.read( len * 8 );
++        return super.read( b, off, len );
++    }
++}
+diff --git a/src/protocolsupport/api/chat/ChatAPI.java b/src/protocolsupport/api/chat/ChatAPI.java
+index a8bb375..9505902 100644
+--- a/src/protocolsupport/api/chat/ChatAPI.java
++++ b/src/protocolsupport/api/chat/ChatAPI.java
+@@ -1,14 +1,19 @@
+ package protocolsupport.api.chat;
+ 
+ import org.apache.commons.lang3.Validate;
+-import blue.lapis.pore.impl.entity.PorePlayer;
++import org.apache.http.util.EntityUtils;
+ import org.bukkit.entity.Player;
++import org.spongepowered.api.entity.Entity;
++import org.spongepowered.common.entity.EntityUtil;
+ 
+ import com.google.gson.Gson;
+ import com.google.gson.GsonBuilder;
+ 
++import blue.lapis.pore.impl.entity.PorePlayer;
++import net.minecraft.entity.player.EntityPlayerMP;
+ import net.minecraft.util.text.ITextComponent.Serializer;
+ import net.minecraft.network.play.server.SPacketChat;
++
+ import protocolsupport.api.chat.components.BaseComponent;
+ import protocolsupport.api.chat.modifiers.ClickAction;
+ import protocolsupport.api.chat.modifiers.HoverAction;
+@@ -51,7 +56,7 @@ public class ChatAPI {
+ 		Validate.notNull(player, "Player can't be null");
+ 		Validate.notNull(messageJson, "Message can't be null");
+ 		Validate.notNull(position, "Message position can't be null");
+-		((PorePlayer) player).getHandle().connection.sendPacket(new SPacketChat(Serializer.jsonToComponent(messageJson), (byte) position.ordinal()));
++		((EntityPlayerMP) ((PorePlayer) player).getHandle()).connection.sendPacket(new SPacketChat(Serializer.jsonToComponent(messageJson), (byte) position.ordinal()));
+ 	}
+ 
+ 	public static enum MessagePosition {
+diff --git a/src/protocolsupport/api/chat/modifiers/HoverAction.java b/src/protocolsupport/api/chat/modifiers/HoverAction.java
+index b1e47d6..ea22af5 100644
+--- a/src/protocolsupport/api/chat/modifiers/HoverAction.java
++++ b/src/protocolsupport/api/chat/modifiers/HoverAction.java
+@@ -4,20 +4,20 @@ import java.util.UUID;
+ 
+ import org.bukkit.Achievement;
+ import org.bukkit.Statistic;
+-import blue.lapis.pore.impl.PoreStatistic;
+-import blue.lapis.pore.impl.inventory.PoreItemStack;
+ import org.bukkit.entity.Entity;
+ import org.bukkit.entity.EntityType;
+ import org.bukkit.inventory.ItemStack;
++import org.spongepowered.common.item.inventory.util.ItemStackUtil;
+ 
+ import net.minecraft.nbt.NBTException;
+ import net.minecraft.nbt.JsonToNBT;
+ import net.minecraft.nbt.NBTTagCompound;
++import net.minecraft.stats.StatList;
+ import protocolsupport.api.chat.ChatAPI;
+ import protocolsupport.api.chat.components.BaseComponent;
+ import protocolsupport.api.utils.Any;
+ 
+-public class HoverAction {
++public class HoverAction { //TODO double check
+ 
+ 	private Type type;
+ 	private String value;
+@@ -34,7 +34,7 @@ public class HoverAction {
+ 
+ 	public HoverAction(ItemStack itemstack) {
+ 		this.type = Type.SHOW_ITEM;
+-		net.minecraft.item.ItemStack nmsitemstack = PoreItemStack.asNMSCopy(itemstack);
++		net.minecraft.item.ItemStack nmsitemstack = ItemStackUtil.toNative((org.spongepowered.api.item.inventory.ItemStack) itemstack);
+ 		NBTTagCompound compound = new NBTTagCompound();
+ 		nmsitemstack.writeToNBT(compound);
+ 		this.value = compound.toString();
+@@ -56,12 +56,12 @@ public class HoverAction {
+ 
+ 	public HoverAction(Achievement achievment) {
+ 		this.type = Type.SHOW_ACHIEVEMENT;
+-		this.value = PoreStatistic.getNMSAchievement(achievment).statId;
++		this.value = ((net.minecraft.stats.Achievement) StatList.getOneShotStat(achievment.name())).statId;
+ 	}
+ 
+ 	public HoverAction(Statistic stat) {
+ 		this.type = Type.SHOW_ACHIEVEMENT;
+-		this.value = PoreStatistic.getNMSStatistic(stat).statId;
++		this.value = StatList.getOneShotStat(stat.name()).statId;
+ 	}
+ 
+ 	public Type getType() {
+@@ -80,7 +80,7 @@ public class HoverAction {
+ 	public ItemStack getItemStack() {
+ 		validateAction(type, Type.SHOW_ITEM);
+ 		try {
+-			return PoreItemStack.asCraftMirror(net.minecraft.item.ItemStack.loadItemStackFromNBT(JsonToNBT.getTagFromJson(value)));
++			return (ItemStack) ItemStackUtil.fromNative(net.minecraft.item.ItemStack.loadItemStackFromNBT(JsonToNBT.getTagFromJson(value)));
+ 		} catch (NBTException e) {
+ 			throw new IllegalStateException("Unable to parse value to itemstack");
+ 		}
+@@ -99,8 +99,8 @@ public class HoverAction {
+ 
+ 	public Any<Achievement, Statistic> getAchievmentOrStat() {
+ 		validateAction(type, Type.SHOW_ACHIEVEMENT);
+-		Achievement achievement = PoreStatistic.getBukkitAchievementByName(value);
+-		Statistic stat = PoreStatistic.getBukkitStatisticByName(value);
++		Achievement achievement = Achievement.valueOf(value);
++		Statistic stat = Statistic.valueOf(value);
+ 		return new Any<>(achievement, stat);
+ 	}
+ 
+diff --git a/src/protocolsupport/api/tab/TabAPI.java b/src/protocolsupport/api/tab/TabAPI.java
+index bc0ea90..9949445 100644
+--- a/src/protocolsupport/api/tab/TabAPI.java
++++ b/src/protocolsupport/api/tab/TabAPI.java
+@@ -4,10 +4,12 @@ import java.io.IOException;
+ 
+ import org.apache.commons.lang3.Validate;
+ import org.bukkit.Bukkit;
+-import blue.lapis.pore.impl.entity.PorePlayer;
+ import org.bukkit.entity.Player;
+ 
++import blue.lapis.pore.impl.entity.PorePlayer;
++import net.minecraft.entity.player.EntityPlayerMP;
+ import net.minecraft.network.play.server.SPacketPlayerListHeaderFooter;
++
+ import protocolsupport.api.chat.ChatAPI;
+ import protocolsupport.api.chat.components.BaseComponent;
+ import protocolsupport.api.chat.components.TextComponent;
+@@ -57,7 +59,7 @@ public class TabAPI {
+ 			packet.readPacketData(serializer.getNativeSerializer());
+ 		} catch (IOException e) {
+ 		}
+-		((PorePlayer) player).getHandle().connection.sendPacket(packet);
++		((EntityPlayerMP) ((PorePlayer) player).getHandle()).connection.sendPacket(packet);
+ 	}
+ 
+ }
+diff --git a/src/protocolsupport/api/title/TitleAPI.java b/src/protocolsupport/api/title/TitleAPI.java
+index 807024d..1b5e33a 100644
+--- a/src/protocolsupport/api/title/TitleAPI.java
++++ b/src/protocolsupport/api/title/TitleAPI.java
+@@ -1,12 +1,13 @@
+ package protocolsupport.api.title;
+ 
+ import org.apache.commons.lang3.Validate;
+-import blue.lapis.pore.impl.entity.PorePlayer;
+ import org.bukkit.entity.Player;
+ 
++import blue.lapis.pore.impl.entity.PorePlayer;
+ import net.minecraft.util.text.ITextComponent.Serializer;
+ import net.minecraft.network.play.server.SPacketTitle;
+ import net.minecraft.network.play.server.SPacketTitle.Type;
++import net.minecraft.entity.player.EntityPlayerMP;
+ import net.minecraft.network.NetHandlerPlayServer;
+ import protocolsupport.api.chat.ChatAPI;
+ import protocolsupport.api.chat.components.BaseComponent;
+@@ -22,7 +23,7 @@ public class TitleAPI {
+ 		if (titleJson == null && subtitleJson == null) {
+ 			throw new IllegalArgumentException("Title and subtitle can't be both null");
+ 		}
+-		NetHandlerPlayServer connection = ((PorePlayer) player).getHandle().connection;
++		NetHandlerPlayServer connection = ((EntityPlayerMP) ((PorePlayer) player).getHandle()).connection;
+ 		if (titleJson != null) {
+ 			connection.sendPacket(new SPacketTitle(Type.TITLE, Serializer.jsonToComponent(titleJson)));
+ 		}
+@@ -33,7 +34,7 @@ public class TitleAPI {
+ 	}
+ 
+ 	public static void removeSimpleTitle(Player player) {
+-		NetHandlerPlayServer connection = ((PorePlayer) player).getHandle().connection;
++		NetHandlerPlayServer connection = ((EntityPlayerMP) ((PorePlayer) player).getHandle()).connection;
+ 		connection.sendPacket(new SPacketTitle(Type.CLEAR, null));
+ 		connection.sendPacket(new SPacketTitle(Type.RESET, null));
+ 	}
+diff --git a/src/protocolsupport/api/utils/IconUtils.java b/src/protocolsupport/api/utils/IconUtils.java
+index fc0c8ad..17e9ecd 100644
+--- a/src/protocolsupport/api/utils/IconUtils.java
++++ b/src/protocolsupport/api/utils/IconUtils.java
+@@ -11,9 +11,9 @@ import javax.imageio.ImageIO;
+ 
+ import org.apache.commons.codec.binary.Base64;
+ import org.apache.commons.lang3.Validate;
++import org.bukkit.util.CachedServerIcon;
+ import blue.lapis.pore.impl.PoreServer;
+ import blue.lapis.pore.impl.util.PoreCachedServerIcon;
+-import org.bukkit.util.CachedServerIcon;
+ 
+ public class IconUtils {
+ 
+diff --git a/src/protocolsupport/commands/CommandHandler.java b/src/protocolsupport/commands/CommandHandler.java
+index dc57b0e..d03136c 100644
+--- a/src/protocolsupport/commands/CommandHandler.java
++++ b/src/protocolsupport/commands/CommandHandler.java
+@@ -34,7 +34,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
+ 			}
+ 			return true;
+ 		}
+-		if (args.length == 1 && args[0].equalsIgnoreCase("debug")) {
++		/*if (args.length == 1 && args[0].equalsIgnoreCase("debug")) { //Can't do this in sponge
+ 			PropertyManager manager = Utils.getServer().getPropertyManager();
+ 			if (!manager.getBooleanProperty(DEBUG_PROPERTY, false)) {
+ 				manager.setProperty(DEBUG_PROPERTY, Boolean.TRUE);
+@@ -44,7 +44,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
+ 				sender.sendMessage(ChatColor.GOLD + "Disabled debug");
+ 			}
+ 			return true;
+-		}
++		}*/
+ 		return false;
+ 	}
+ 
+diff --git a/src/protocolsupport/commands/ReloadCommandRemover.java b/src/protocolsupport/commands/ReloadCommandRemover.java
+index d1749eb..157c8e2 100644
+--- a/src/protocolsupport/commands/ReloadCommandRemover.java
++++ b/src/protocolsupport/commands/ReloadCommandRemover.java
+@@ -13,8 +13,8 @@ import protocolsupport.utils.ReflectionUtils;
+ public class ReloadCommandRemover {
+ 
+ 	@SuppressWarnings("unchecked")
+-	public static void remove() {
+-		try {
++	public static void remove() { // Pore already removed the reload command
++		/*try {
+ 			PluginManager pluginmanager = Bukkit.getPluginManager();
+ 			CommandMap commandMap = (CommandMap) ReflectionUtils.getField(pluginmanager.getClass(), "commandMap").get(pluginmanager);
+ 			Collection<Command> commands = (Collection<Command>) ReflectionUtils.getMethod(commandMap.getClass(), "getCommands", 0).invoke(commandMap);
+@@ -24,10 +24,10 @@ public class ReloadCommandRemover {
+ 				}
+ 			}
+ 		} catch (Throwable t) {
+-		}
++		}*/
+ 	}
+ 
+-	private static void removeCommand(CommandMap commandMap, Collection<Command> commands, Command cmd) throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
++	/*private static void removeCommand(CommandMap commandMap, Collection<Command> commands, Command cmd) throws NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
+ 		cmd.unregister(commandMap);
+ 		if (commands.getClass().getSimpleName().equals("UnmodifiableCollection")) {
+ 			Field originalField = commands.getClass().getDeclaredField("c");
+@@ -38,6 +38,6 @@ public class ReloadCommandRemover {
+ 		} else {
+ 			commands.remove(cmd);
+ 		}
+-	}
++	}*/
+ 
+ }
+diff --git a/src/protocolsupport/injector/ServerInjector.java b/src/protocolsupport/injector/ServerInjector.java
+index e84bd55..55c15d9 100644
+--- a/src/protocolsupport/injector/ServerInjector.java
++++ b/src/protocolsupport/injector/ServerInjector.java
+@@ -29,13 +29,13 @@ public class ServerInjector {
+ 		registerBlock(145, "anvil", new ItemAnvilBlock(new BlockAnvil()).setUnlocalizedName("anvil"));
+ 		registerBlock(111, "waterlily", new ItemLilyPad(new BlockWaterLily()));
+ 		fixBlocksRefs();
+-		Bukkit.resetRecipes();
++		//Bukkit.resetRecipes(); //TODO not implemented in Pore
+ 	}
+ 
+ 	@SuppressWarnings("unchecked")
+ 	private static void registerTileEntity(Class<? extends TileEntity> entityClass, String name) throws IllegalArgumentException, IllegalAccessException, NoSuchFieldException, SecurityException {
+-		((Map<String, Class<? extends TileEntity>>) ReflectionUtils.setAccessible(TileEntity.class.getDeclaredField("f")).get(null)).put(name, entityClass);
+-		((Map<Class<? extends TileEntity>, String>) ReflectionUtils.setAccessible(TileEntity.class.getDeclaredField("g")).get(null)).put(entityClass, name);
++		((Map<String, Class<? extends TileEntity>>) ReflectionUtils.setAccessible(TileEntity.class.getDeclaredField("field_145855_i")).get(null)).put(name, entityClass); //f
++		((Map<Class<? extends TileEntity>, String>) ReflectionUtils.setAccessible(TileEntity.class.getDeclaredField("field_145853_j")).get(null)).put(entityClass, name); //g
+ 	}
+ 
+ 	private static void registerBlock(int id, String name, Block block) throws IllegalArgumentException, IllegalAccessException, NoSuchFieldException, SecurityException {
+@@ -54,7 +54,7 @@ public class ServerInjector {
+ 			Block.BLOCK_STATE_IDS.put(blockdata, stateId);
+ 		}
+ 		Item.REGISTRY.register(id, stringkey, itemblock);
+-		((Map<Block, Item>) ReflectionUtils.setAccessible(Item.class.getDeclaredField("a")).get(null)).put(block, itemblock);
++		((Map<Block, Item>) ReflectionUtils.setAccessible(Item.class.getDeclaredField("field_179220_a")).get(null)).put(block, itemblock); //a
+ 	}
+ 
+ 	private static void fixBlocksRefs() throws IllegalArgumentException, IllegalAccessException, NoSuchFieldException, SecurityException {
+@@ -67,7 +67,7 @@ public class ServerInjector {
+ 					Iterator<IBlockState> blockdataiterator = block.getBlockState().getValidStates().iterator();
+ 					while (blockdataiterator.hasNext()) {
+ 						IBlockState blockdata = blockdataiterator.next();
+-						ReflectionUtils.getField(blockdata.getClass(), "a").set(blockdata, block);
++						ReflectionUtils.getField(blockdata.getClass(), "field_177239_a").set(blockdata, block); //a
+ 					}
+ 					ReflectionUtils.setStaticFinalField(field, newblock);
+ 				}
+diff --git a/src/protocolsupport/injector/network/BasicInjector.java b/src/protocolsupport/injector/network/BasicInjector.java
+index ed357c4..3541ce5 100644
+--- a/src/protocolsupport/injector/network/BasicInjector.java
++++ b/src/protocolsupport/injector/network/BasicInjector.java
+@@ -26,9 +26,9 @@ public class BasicInjector {
+ 		try {
+ 			nmList = (List<NetworkManager>) ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("pending")).get(serverConnection);
+ 		} catch (NoSuchFieldException e) {
+-			nmList = (List<NetworkManager>) ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("h")).get(serverConnection);
++			nmList = (List<NetworkManager>) ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("field_151272_f")).get(serverConnection); //h
+ 		}
+-		Field connectionsListField = ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("g"));
++		Field connectionsListField = ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("field_151274_e")); //g
+ 		ChannelInjectList connectionsList = new ChannelInjectList(nmList, (List<ChannelFuture>) connectionsListField.get(serverConnection));
+ 		connectionsListField.set(serverConnection, connectionsList);
+ 		connectionsList.injectExisting();
+@@ -108,7 +108,7 @@ public class BasicInjector {
+ 			}
+ 			synchronized (networkManagersList) {
+ 				for (NetworkManager nm : networkManagersList) {
+-					if (nm.channel.localAddress().equals(channel.localAddress())) {
++					if (Utils.getChannel(nm).localAddress().equals(channel.localAddress())) {
+ 						nm.closeChannel(new TextComponentString("ProtocolSupport channel reset"));
+ 					}
+ 				}
+diff --git a/src/protocolsupport/injector/network/NettyInjector.java b/src/protocolsupport/injector/network/NettyInjector.java
+index b0d8fc4..03dedcc 100644
+--- a/src/protocolsupport/injector/network/NettyInjector.java
++++ b/src/protocolsupport/injector/network/NettyInjector.java
+@@ -6,9 +6,9 @@ import protocolsupport.utils.Utils;
+ public class NettyInjector {
+ 
+ 	public static void inject() throws IllegalArgumentException, IllegalAccessException, NoSuchFieldException, SecurityException {
+-		if (Utils.getServer().shouldUseNativeTransport()) {
++		/*if (Utils.getServer().shouldUseNativeTransport()) {
+ 			ProtocolSupport.logWarning("Native transport is enabled, this may cause issues. Disable it by setting use-native-transport in server.properties to false.");
+-		}
++		}*/
+ 		BasicInjector.inject();
+ 	}
+ 
+diff --git a/src/protocolsupport/protocol/legacyremapper/LegacySound.java b/src/protocolsupport/protocol/legacyremapper/LegacySound.java
+index 282e633..b9ccf19 100644
+--- a/src/protocolsupport/protocol/legacyremapper/LegacySound.java
++++ b/src/protocolsupport/protocol/legacyremapper/LegacySound.java
+@@ -2,10 +2,11 @@ package protocolsupport.protocol.legacyremapper;
+ 
+ import java.util.HashMap;
+ 
+-import blue.lapis.pore.impl.entity.PorePlayer;
+ import org.bukkit.entity.Player;
+ 
++import blue.lapis.pore.impl.entity.PorePlayer;
+ import net.minecraft.block.Block;
++import net.minecraft.entity.player.EntityPlayerMP;
+ import net.minecraft.network.play.server.SPacketSoundEffect;
+ import net.minecraft.util.SoundCategory;
+ import net.minecraft.util.SoundEvent;
+@@ -16,7 +17,7 @@ public class LegacySound {
+ 	@SuppressWarnings("deprecation")
+ 	public static void sendBlockPlaceSound(Player player, org.bukkit.block.Block block) {
+ 		SoundType blocksound = Block.getBlockById(block.getType().getId()).getSoundType();
+-		((PorePlayer) player).getHandle().connection.sendPacket(new SPacketSoundEffect(
++		    ((EntityPlayerMP) ((PorePlayer) player).getHandle()).connection.sendPacket(new SPacketSoundEffect(
+ 			blocksound.getPlaceSound(), SoundCategory.BLOCKS,
+ 			block.getX(), block.getY(), block.getZ(),
+ 			(blocksound.getVolume() + 1.0F) / 2.0F,
+diff --git a/src/protocolsupport/protocol/packet/ClientBoundPacket.java b/src/protocolsupport/protocol/packet/ClientBoundPacket.java
+index 3f12dec..fe960c7 100644
+--- a/src/protocolsupport/protocol/packet/ClientBoundPacket.java
++++ b/src/protocolsupport/protocol/packet/ClientBoundPacket.java
+@@ -43,7 +43,6 @@ import net.minecraft.network.play.server.SPacketExplosion;
+ import net.minecraft.network.play.server.SPacketChangeGameState;
+ import net.minecraft.network.play.server.SPacketHeldItemChange;
+ import net.minecraft.network.play.server.SPacketKeepAlive;
+-import net.minecraft.network.play.server.SPacketDisconnect;
+ import net.minecraft.network.play.server.SPacketJoinGame;
+ import net.minecraft.network.play.server.SPacketMaps;
+ import net.minecraft.network.play.server.SPacketChunkData;
+@@ -158,7 +157,7 @@ public class ClientBoundPacket {
+ 	public static final int PLAY_SCOREBOARD_DISPLAY_SLOT_ID = getId(SPacketDisplayObjective.class);
+ 	public static final int PLAY_SCOREBOARD_TEAM_ID = getId(SPacketTeams.class);
+ 	public static final int PLAY_CUSTOM_PAYLOAD_ID = getId(SPacketCustomPayload.class);
+-	public static final int PLAY_KICK_DISCONNECT_ID = getId(SPacketDisconnect.class);
++	public static final int PLAY_KICK_DISCONNECT_ID = getId(net.minecraft.network.play.server.SPacketDisconnect.class);
+ 	public static final int PLAY_RESOURCE_PACK_ID = getId(SPacketResourcePackSend.class);
+ 	public static final int PLAY_CAMERA_ID = getId(SPacketCamera.class);
+ 	public static final int PLAY_WORLD_BORDER_ID = getId(SPacketWorldBorder.class);
+@@ -174,14 +173,14 @@ public class ClientBoundPacket {
+ 	private static final int getId(Class<?> packetClass) {
+ 		Map<Class<? extends Packet<?>>, EnumConnectionState> protocolMap = null;
+ 		try {
+-			protocolMap = (Map<Class<? extends Packet<?>>, EnumConnectionState>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("f")).get(null);
++			protocolMap = (Map<Class<? extends Packet<?>>, EnumConnectionState>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("field_150761_f")).get(null); //f
+ 		} catch (Throwable t) {
+ 			SneakyThrow.sneaky(t);
+ 		}
+ 		EnumConnectionState protocol = protocolMap.get(packetClass);
+ 		Map<EnumPacketDirection, BiMap<Integer, Class<? extends Packet<?>>>> idMap = null;
+ 		try {
+-			idMap = (Map<EnumPacketDirection, BiMap<Integer, Class<? extends Packet<?>>>>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("h")).get(protocol);
++			idMap = (Map<EnumPacketDirection, BiMap<Integer, Class<? extends Packet<?>>>>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("field_179247_h")).get(protocol); //h
+ 		} catch (Throwable t) {
+ 			SneakyThrow.sneaky(t);
+ 		}
+diff --git a/src/protocolsupport/protocol/packet/ServerBoundPacket.java b/src/protocolsupport/protocol/packet/ServerBoundPacket.java
+index 819cf45..1b8bb09 100644
+--- a/src/protocolsupport/protocol/packet/ServerBoundPacket.java
++++ b/src/protocolsupport/protocol/packet/ServerBoundPacket.java
+@@ -86,14 +86,14 @@ public enum ServerBoundPacket {
+ 	ServerBoundPacket(Class<? extends Packet<?>> packetClass) {
+ 		Map<Class<? extends Packet<?>>, EnumConnectionState> protocolMap = null;
+ 		try {
+-			protocolMap = (Map<Class<? extends Packet<?>>, EnumConnectionState>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("f")).get(null);
++			protocolMap = (Map<Class<? extends Packet<?>>, EnumConnectionState>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("field_150761_f")).get(null); //f
+ 		} catch (Throwable t) {
+ 			SneakyThrow.sneaky(t);
+ 		}
+ 		this.protocol = protocolMap.get(packetClass);
+ 		Map<EnumPacketDirection, BiMap<Integer, Class<? extends Packet<?>>>> idMap = null;
+ 		try {
+-			idMap = (Map<EnumPacketDirection, BiMap<Integer, Class<? extends Packet<?>>>>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("h")).get(protocol);
++			idMap = (Map<EnumPacketDirection, BiMap<Integer, Class<? extends Packet<?>>>>) ReflectionUtils.setAccessible(EnumConnectionState.class.getDeclaredField("field_179247_h")).get(protocol); //h
+ 		} catch (Throwable t) {
+ 			SneakyThrow.sneaky(t);
+ 		}
+diff --git a/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java b/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java
+index b59dfd4..78bb481 100644
+--- a/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java
++++ b/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java
+@@ -5,7 +5,8 @@ import java.net.InetSocketAddress;
+ import java.net.SocketAddress;
+ 
+ import org.apache.logging.log4j.LogManager;
+-import org.spigotmc.SpigotConfig;
++import org.spongepowered.common.SpongeImpl;
++import org.spongepowered.common.config.type.GlobalConfig;
+ 
+ import com.google.gson.Gson;
+ import com.mojang.authlib.properties.Property;
+@@ -26,6 +27,7 @@ import net.minecraft.network.login.server.SPacketDisconnect;
+ import protocolsupport.api.ProtocolVersion;
+ import protocolsupport.protocol.storage.ProtocolStorage;
+ import protocolsupport.protocol.storage.ThrottleTracker;
++import protocolsupport.utils.ReflectionUtils;
+ import protocolsupport.utils.Utils;
+ 
+ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
+@@ -47,7 +49,7 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
+ 				networkManager.setConnectionState(EnumConnectionState.LOGIN);
+ 				try {
+ 					final InetAddress address = ((InetSocketAddress) networkManager.getRemoteAddress()).getAddress();
+-					if (ThrottleTracker.isEnabled() && !SpigotConfig.bungee) {
++					if (ThrottleTracker.isEnabled() && !SpongeImpl.getGlobalConfig().getConfig().getBungeeCord().getIpForwarding()) {
+ 						if (ThrottleTracker.throttle(address)) {
+ 							final TextComponentString chatcomponenttext = new TextComponentString("Connection throttled! Please wait before reconnecting.");
+ 							networkManager.sendPacket(new SPacketDisconnect(chatcomponenttext), new GenericFutureListener<Future<? super Void>>() {
+@@ -74,8 +76,10 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
+ 					break;
+ 				}
+ 				networkManager.setNetHandler(getLoginListener(networkManager));
+-				if (SpigotConfig.bungee) {
+-					final String[] split = packethandshakinginsetprotocol.ip.split("\u0000");
++				try {
++				if (SpongeImpl.getGlobalConfig().getConfig().getBungeeCord().getIpForwarding()) {
++					String ip = (String) ReflectionUtils.getField(packethandshakinginsetprotocol.getClass(), "field_149598_b").get(packethandshakinginsetprotocol); //ip
++					final String[] split = ip.split("\u0000");
+ 					if ((split.length != 3) && (split.length != 4)) {
+ 						final TextComponentString chatcomponenttext = new TextComponentString("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
+ 						networkManager.sendPacket(new SPacketDisconnect(chatcomponenttext), new GenericFutureListener<Future<? super Void>>() {
+@@ -86,19 +90,22 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
+ 						});
+ 						return;
+ 					}
+-					packethandshakinginsetprotocol.ip = split[0];
++					ip = split[0];
+ 					SocketAddress oldaddress = networkManager.getRemoteAddress();
+ 					ProtocolVersion version = ProtocolStorage.getProtocolVersion(oldaddress);
+ 					ProtocolStorage.clearData(oldaddress);
+ 					SocketAddress newaddress = new InetSocketAddress(split[1], ((InetSocketAddress) oldaddress).getPort());
+-					networkManager.socketAddress = newaddress;
++					ReflectionUtils.getField(networkManager.getClass(), "field_150743_l").set(networkManager, newaddress); // socketAddress
+ 					ProtocolStorage.setProtocolVersion(newaddress, version);
+-					networkManager.spoofedUUID = UUIDTypeAdapter.fromString(split[2]);
++					ReflectionUtils.getField(networkManager.getClass(), "spoofedUUID").set(networkManager, UUIDTypeAdapter.fromString(split[2]));
+ 					if (split.length == 4) {
+-						networkManager.spoofedProfile = gson.fromJson(split[3], Property[].class);
++					    ReflectionUtils.getField(networkManager.getClass(), "spoofedProfile").set(networkManager, gson.fromJson(split[3], Property[].class));
+ 					}
+ 				}
+-				((NetHandlerLoginServer) networkManager.getNetHandler()).hostname = packethandshakinginsetprotocol.ip + ":" + packethandshakinginsetprotocol.port;
++				} catch (Exception e) {
++				    throw new RuntimeException("Couldn't init bungeecord!");
++				}
++				/*((NetHandlerLoginServer) networkManager.getNetHandler()).hostname = packethandshakinginsetprotocol.ip + ":" + packethandshakinginsetprotocol.port;*/
+ 				break;
+ 			}
+ 			case STATUS: {
+diff --git a/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java b/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java
+index 801cbf4..2898ffa 100644
+--- a/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java
++++ b/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java
+@@ -42,6 +42,7 @@ import protocolsupport.api.events.PlayerLoginStartEvent;
+ import protocolsupport.protocol.pipeline.ChannelHandlers;
+ import protocolsupport.protocol.pipeline.common.PacketCompressor;
+ import protocolsupport.protocol.pipeline.common.PacketDecompressor;
++import protocolsupport.utils.ReflectionUtils;
+ import protocolsupport.utils.Utils;
+ import protocolsupport.utils.Utils.Converter;
+ 
+@@ -114,7 +115,7 @@ public abstract class AbstractLoginListener extends NetHandlerLoginServer {
+ 		}
+ 	}
+ 
+-	@Override
++	/*@Override // Sponge already does this
+ 	public void initUUID() {
+ 		profile = new GameProfile(networkManager.spoofedUUID != null ? networkManager.spoofedUUID : generateOffileModeUUID(), profile.getName());
+ 		if (networkManager.spoofedProfile != null) {
+@@ -122,13 +123,13 @@ public abstract class AbstractLoginListener extends NetHandlerLoginServer {
+ 				profile.getProperties().put(property.getName(), property);
+ 			}
+ 		}
+-	}
++	}*/
+ 
+ 	protected UUID generateOffileModeUUID() {
+ 		return UUID.nameUUIDFromBytes(("OfflinePlayer:" + profile.getName()).getBytes(Charsets.UTF_8));
+ 	}
+ 
+-	@Override
++	@Override // Sponge doesn't handle this method, and I removed it in the past, but now it does nothing too ...
+ 	public void tryAcceptPlayer() {
+ 		throw new IllegalStateException("Should not reach here");
+ 	}
+@@ -136,7 +137,7 @@ public abstract class AbstractLoginListener extends NetHandlerLoginServer {
+ 	protected abstract boolean hasCompression();
+ 
+ 	protected void enableCompresssion(int compressionLevel) {
+-		Channel channel = networkManager.channel;
++		Channel channel = Utils.getChannel(networkManager);
+ 		if (compressionLevel >= 0) {
+ 			channel.pipeline().addBefore(ChannelHandlers.DECODER, "decompress", new PacketDecompressor(compressionLevel));
+ 			channel.pipeline().addBefore(ChannelHandlers.ENCODER, "compress", new PacketCompressor(compressionLevel));
+@@ -168,7 +169,7 @@ public abstract class AbstractLoginListener extends NetHandlerLoginServer {
+ 						profile.getName(),
+ 						isOnlineMode,
+ 						useOnlineModeUUID,
+-						hostname
++						null //hostname
+ 					);
+ 					Bukkit.getPluginManager().callEvent(event);
+ 					if (event.isLoginDenied()) {
+@@ -242,6 +243,7 @@ public abstract class AbstractLoginListener extends NetHandlerLoginServer {
+ 	@SuppressWarnings("unchecked")
+ 	public void setReadyToAccept() {
+ 		UUID newUUID = null;
++		System.out.println("setReadyToAccept");
+ 		if (isOnlineMode && !useOnlineModeUUID) {
+ 			newUUID = generateOffileModeUUID();
+ 		}
+@@ -268,7 +270,7 @@ public abstract class AbstractLoginListener extends NetHandlerLoginServer {
+ 			}
+ 		}
+ 
+-		LoginListenerPlay listener = new LoginListenerPlay(networkManager, profile, isOnlineMode, hostname);
++		LoginListenerPlay listener = new LoginListenerPlay(networkManager, profile, isOnlineMode, null);//hostname);
+ 		networkManager.setNetHandler(listener);
+ 		listener.finishLogin();
+ 	}
+diff --git a/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java b/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java
+index e09bd91..283dec9 100644
+--- a/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java
++++ b/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java
+@@ -20,6 +20,7 @@ import net.minecraft.util.text.ITextComponent;
+ import net.minecraft.util.ITickable;
+ import net.minecraft.server.network.NetHandlerLoginServer;
+ import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.management.PlayerInteractionManager;
+ import net.minecraft.network.NetworkManager;
+ import net.minecraft.network.PacketBuffer;
+ import net.minecraft.network.play.INetHandlerPlayServer;
+@@ -77,7 +78,7 @@ public class LoginListenerPlay extends NetHandlerLoginServer implements INetHand
+ 		super(server, networkmanager);
+ 		this.profile = profile;
+ 		this.onlineMode = onlineMode;
+-		this.hostname = hostname;
++		//this.hostname = hostname;
+ 	}
+ 
+ 	public void finishLogin() {
+@@ -113,16 +114,17 @@ public class LoginListenerPlay extends NetHandlerLoginServer implements INetHand
+ 		//custom payload does nothing on a client when sent with invalid tag, but it resets client readtimeouthandler, and that is exactly what we need
+ 		networkManager.sendPacket(new SPacketCustomPayload("PSFake", fake));
+ 		//we also need to reset server readtimeouthandler
+-		ChannelHandlers.getTimeoutHandler(networkManager.channel.pipeline()).setLastRead();
++		ChannelHandlers.getTimeoutHandler(Utils.getChannel(networkManager).pipeline()).setLastRead();
+ 	}
+ 
+ 	@Override
+ 	public void tryAcceptPlayer() {
+-		EntityPlayerMP loginplayer = server.getPlayerList().attemptLogin(this, profile, hostname);
+-		if (loginplayer != null) {
+-			server.getPlayerList().initializeConnectionToPlayer(this.networkManager, loginplayer);
++		//EntityPlayerMP loginplayer = server.getPlayerList().attemptLogin(this, profile, hostname);
++		//if (loginplayer != null) {
++			server.getPlayerList().initializeConnectionToPlayer(this.networkManager,
++					new EntityPlayerMP(server, server.worldServerForDimension(0), profile, new PlayerInteractionManager(server.worldServerForDimension(0))));
+ 			ready = false;
+-		}
++		//}
+ 	}
+ 
+ 	@Override
+@@ -143,7 +145,7 @@ public class LoginListenerPlay extends NetHandlerLoginServer implements INetHand
+ 				//first send join game that will make client actually switch to game state
+ 				networkManager.sendPacket(new SPacketJoinGame(0, GameType.NOT_SET, false, 0, EnumDifficulty.EASY, 60, WorldType.DEFAULT, false));
+ 				//send disconnect with a little delay
+-				networkManager.channel.eventLoop().schedule(new Runnable() {
++				Utils.getChannel(networkManager).eventLoop().schedule(new Runnable() {
+ 					@Override
+ 					public void run() {
+ 						disconnect0(s);
+diff --git a/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java b/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java
+index f7a03e7..e018a2c 100644
+--- a/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java
++++ b/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java
+@@ -7,12 +7,14 @@ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.UUID;
+ import java.util.logging.Level;
++import java.util.logging.Logger;
+ 
+ import org.bukkit.Bukkit;
+-import blue.lapis.pore.impl.PoreServer;
+-import blue.lapis.pore.impl.util.Waitable;
++/*import org.bukkit.craftbukkit.v1_10_R1.CraftServer;
++import org.bukkit.craftbukkit.v1_10_R1.util.Waitable;*/
+ import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+ import org.bukkit.event.player.PlayerPreLoginEvent;
++import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+ 
+ import com.mojang.authlib.GameProfile;
+ import com.mojang.authlib.exceptions.AuthenticationUnavailableException;
+@@ -39,7 +41,7 @@ public class PlayerLookupUUID {
+ 		final GameProfile gameprofile = listener.getProfile();
+ 		try {
+ 			if (!isOnlineMode) {
+-				listener.initUUID();
++				listener.getClass().getMethod("initUUID", CallbackInfo.class).invoke(listener);
+ 				fireLoginEvents();
+ 				return;
+ 			}
+@@ -56,7 +58,7 @@ public class PlayerLookupUUID {
+ 			listener.getLogger().error("Couldn't verify username because servers are unavailable");
+ 		} catch (Exception exception) {
+ 			listener.closeConnection("Failed to verify username!");
+-			Utils.getServer().server.getLogger().log(Level.WARNING, "Exception verifying " + gameprofile.getName(), exception);
++			Logger.getLogger("Minecraft").log(Level.WARNING, "Exception verifying " + gameprofile.getName(), exception);
+ 		}
+ 	}
+ 
+@@ -81,10 +83,10 @@ public class PlayerLookupUUID {
+ 			propertymap.put(profileproperty.getName(), new Property(profileproperty.getName(), profileproperty.getValue(), profileproperty.getSignature()));
+ 		}
+ 
+-		UUID uniqueId = listener.getProfile().getId();
+-		final PoreServer server = Utils.getServer().server;
++		/*UUID uniqueId = listener.getProfile().getId(); //TODO fix this
++		final CraftServer server = Utils.getServer().server;
+ 		final AsyncPlayerPreLoginEvent asyncEvent = new AsyncPlayerPreLoginEvent(playerName, address, uniqueId);
+-		server.getPluginManager().callEvent(asyncEvent);
++		Bukkit.getServer().getPluginManager().callEvent(asyncEvent);
+ 		if (PlayerPreLoginEvent.getHandlerList().getRegisteredListeners().length != 0) {
+ 			final PlayerPreLoginEvent event = new PlayerPreLoginEvent(playerName, address, uniqueId);
+ 			if (asyncEvent.getResult() != PlayerPreLoginEvent.Result.ALLOWED) {
+@@ -105,7 +107,7 @@ public class PlayerLookupUUID {
+ 		} else if (asyncEvent.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+ 			listener.closeConnection(asyncEvent.getKickMessage());
+ 			return;
+-		}
++		}*/
+ 		listener.getLogger().info("UUID of player " + listener.getProfile().getName() + " is " + listener.getProfile().getId());
+ 		listener.setReadyToAccept();
+ 	}
+diff --git a/src/protocolsupport/protocol/packet/handler/StatusListener.java b/src/protocolsupport/protocol/packet/handler/StatusListener.java
+index 5cf3131..add10a3 100644
+--- a/src/protocolsupport/protocol/packet/handler/StatusListener.java
++++ b/src/protocolsupport/protocol/packet/handler/StatusListener.java
+@@ -10,12 +10,13 @@ import java.util.List;
+ import java.util.UUID;
+ 
+ import org.bukkit.Bukkit;
+-import blue.lapis.pore.impl.PoreServer;
+-import blue.lapis.pore.impl.util.PoreCachedServerIcon;
+ import org.bukkit.entity.Player;
+ import org.bukkit.event.server.ServerListPingEvent;
+ import org.bukkit.util.CachedServerIcon;
+-import org.spigotmc.SpigotConfig;
++import org.spongepowered.asm.mixin.Overwrite;
++
++import blue.lapis.pore.impl.PoreServer;
++import blue.lapis.pore.impl.util.PoreCachedServerIcon;
+ 
+ import com.mojang.authlib.GameProfile;
+ 
+@@ -24,6 +25,7 @@ import net.minecraft.util.text.TextComponentString;
+ import net.minecraft.entity.player.EntityPlayerMP;
+ import net.minecraft.util.text.ITextComponent;
+ import net.minecraft.server.MinecraftServer;
++import net.minecraft.server.management.PlayerList;
+ import net.minecraft.network.NetworkManager;
+ import net.minecraft.network.status.client.CPacketPing;
+ import net.minecraft.network.status.client.CPacketServerQuery;
+@@ -34,9 +36,11 @@ import net.minecraft.network.ServerStatusResponse;
+ import net.minecraft.network.ServerStatusResponse.Version;
+ import net.minecraft.network.ServerStatusResponse.Players;
+ 
++
+ import protocolsupport.api.ProtocolVersion;
+ import protocolsupport.api.events.ServerPingResponseEvent;
+ import protocolsupport.api.events.ServerPingResponseEvent.ProtocolInfo;
++import protocolsupport.utils.ReflectionUtils;
+ 
+ public class StatusListener extends NetHandlerStatusServer {
+ 
+@@ -55,7 +59,8 @@ public class StatusListener extends NetHandlerStatusServer {
+ 
+ 	private boolean sentInfo = false;
+ 
+-	@Override
++	@SuppressWarnings("unchecked")
++    @Override
+ 	public void processServerQuery(CPacketServerQuery packetstatusinstart) {
+ 		if (sentInfo) {
+ 			nmanager.closeChannel(infoAlreadySent);
+@@ -64,7 +69,14 @@ public class StatusListener extends NetHandlerStatusServer {
+ 
+ 		InetSocketAddress addr = (InetSocketAddress) nmanager.getRemoteAddress();
+ 
+-		ArrayList<EntityPlayerMP> players = new ArrayList<EntityPlayerMP>(server.getPlayerList().playerEntityList);
++		ArrayList<EntityPlayerMP> players = null;
++		try {
++		    PlayerList list = server.getPlayerList();
++		    Object listField = ReflectionUtils.getField(list.getClass(), "field_72404_b").get(list); //playerEntityList
++		    players = new ArrayList<EntityPlayerMP>((ArrayList<EntityPlayerMP>) listField); //TODO fix
++		} catch (IllegalArgumentException | IllegalAccessException e) {
++		    throw new RuntimeException("Couldn't get playerEntityList!");
++		}
+ 
+ 		String motd = server.getMOTD();
+ 		int maxPlayers = server.getPlayerList().getMaxPlayers();
+@@ -101,7 +113,7 @@ public class StatusListener extends NetHandlerStatusServer {
+ 		for (int i = 0; i < profiles.size(); i++) {
+ 			gprofiles[i] = new GameProfile(profileUUID, profiles.get(i));
+ 		}
+-		gprofiles = Arrays.copyOfRange(gprofiles, 0, Math.min(gprofiles.length, SpigotConfig.playerSample));
++		gprofiles = Arrays.copyOfRange(gprofiles, 0, gprofiles.length);
+ 		playerSample.setPlayers(gprofiles);
+ 
+ 		ServerStatusResponse serverping = new ServerStatusResponse();
+@@ -152,7 +164,7 @@ public class StatusListener extends NetHandlerStatusServer {
+ 
+ 				@Override
+ 				public Player next() {
+-					return iterator.next().getBukkitEntity();
++					return (Player) iterator.next();
+ 				}
+ 
+ 				@Override
+diff --git a/src/protocolsupport/protocol/packet/handler/common/LegacyLoginListener.java b/src/protocolsupport/protocol/packet/handler/common/LegacyLoginListener.java
+index 4426700..0e3ff4c 100644
+--- a/src/protocolsupport/protocol/packet/handler/common/LegacyLoginListener.java
++++ b/src/protocolsupport/protocol/packet/handler/common/LegacyLoginListener.java
+@@ -2,11 +2,14 @@ package protocolsupport.protocol.packet.handler.common;
+ 
+ import javax.crypto.SecretKey;
+ 
++import io.netty.channel.Channel;
+ import net.minecraft.util.CryptManager;
+ import net.minecraft.network.NetworkManager;
+ import protocolsupport.protocol.packet.handler.AbstractLoginListener;
+ import protocolsupport.protocol.pipeline.ChannelHandlers;
+ import protocolsupport.protocol.pipeline.common.PacketDecrypter;
++import protocolsupport.utils.ReflectionUtils;
++import protocolsupport.utils.Utils;
+ 
+ public class LegacyLoginListener extends AbstractLoginListener {
+ 
+@@ -21,7 +24,6 @@ public class LegacyLoginListener extends AbstractLoginListener {
+ 
+ 	@Override
+ 	protected void enableEncryption(SecretKey key) {
+-		networkManager.channel.pipeline().addBefore(ChannelHandlers.SPLITTER, ChannelHandlers.DECRYPT, new PacketDecrypter(CryptManager.createNetCipherInstance(2, loginKey)));
++        Utils.getChannel(networkManager).pipeline().addBefore(ChannelHandlers.SPLITTER, ChannelHandlers.DECRYPT, new PacketDecrypter(CryptManager.createNetCipherInstance(2, loginKey)));
+ 	}
+-
+ }
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java
+index 33409f0..319b2eb 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java
+@@ -7,8 +7,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleExplosion.AffectedBlock;
+-
+ public class Explosion extends MiddleExplosion<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java
+index 51f7262..afc7701 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java
+@@ -13,8 +13,6 @@ import protocolsupport.protocol.typeremapper.id.RemappingTable.ArrayBasedIdRemap
+ import protocolsupport.utils.recyclable.RecyclableArrayList;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleMap.Icon;
+-
+ public class Map extends MiddleMap<RecyclableCollection<PacketData>> {
+ 
+ 	private static final int mapId = Item.getIdFromItem(Items.FILLED_MAP);
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java
+index c7529d1..806bdda 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java
+@@ -9,8 +9,6 @@ import protocolsupport.protocol.typeremapper.id.RemappingTable.ArrayBasedIdRemap
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleBlockChangeMulti.Record;
+-
+ public class BlockChangeMulti extends MiddleBlockChangeMulti<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java
+index 86ca361..76ee17a 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java
+@@ -8,8 +8,6 @@ import protocolsupport.utils.Utils;
+ import protocolsupport.utils.recyclable.RecyclableArrayList;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddlePlayerInfo.Info;
+-
+ public class PlayerInfo extends MiddlePlayerInfo<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java
+index 8c3aa7c..87b887f 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java
+@@ -11,9 +11,6 @@ import protocolsupport.protocol.typeskipper.string.StringSkipper;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Attribute;
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Modifier;
+-
+ public class EntitySetAttributes extends MiddleEntitySetAttributes<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java
+index 113fa00..993cda8 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java
+@@ -9,8 +9,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
+ import protocolsupport.utils.recyclable.RecyclableArrayList;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleMap.Icon;
+-
+ public class Map extends MiddleMap<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java
+index e73624d..75b66b0 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java
+@@ -7,8 +7,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleExplosion.AffectedBlock;
+-
+ public class Explosion extends MiddleExplosion<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java
+index e064b52..733334a 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java
+@@ -9,8 +9,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleStatistics.Statistic;
+-
+ public class Statistics extends MiddleStatistics<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java
+index 7db4681..cceed56 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java
+@@ -12,9 +12,6 @@ import protocolsupport.protocol.typeskipper.string.StringSkipper;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Attribute;
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Modifier;
+-
+ public class EntitySetAttributes extends MiddleEntitySetAttributes<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java
+index 4d3d274..4f6c193 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java
+@@ -7,8 +7,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleMap.Icon;
+-
+ public class Map extends MiddleMap<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java
+index 2c5ab23..e2688c5 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java
+@@ -11,8 +11,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddlePlayerInfo.Info;
+-
+ public class PlayerInfo extends MiddlePlayerInfo<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java
+index 356b57d..beb59ff 100644
+--- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java
++++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java
+@@ -11,8 +11,6 @@ import protocolsupport.protocol.typeremapper.id.RemappingTable.ArrayBasedIdRemap
+ import protocolsupport.utils.recyclable.RecyclableCollection;
+ import protocolsupport.utils.recyclable.RecyclableSingletonList;
+ 
+-import protocolsupport.protocol.packet.middle.clientbound.play.MiddleBlockChangeMulti.Record;
+-
+ public class BlockChangeMulti extends MiddleBlockChangeMulti<RecyclableCollection<PacketData>> {
+ 
+ 	@Override
+diff --git a/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java b/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java
+index de13d3a..dedc1b6 100644
+--- a/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java
++++ b/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java
+@@ -96,6 +96,7 @@ public class InitialPacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
+ 	}
+ 
+ 	private void decode(ChannelHandlerContext ctx) throws Exception {
++	    System.out.println("decode!");
+ 		cancelTask();
+ 		Channel channel = ctx.channel();
+ 		int firstbyte = replayingBuffer.readUnsignedByte();
+diff --git a/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java b/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java
+index b91a2ea..f05a7ff 100644
+--- a/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java
++++ b/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java
+@@ -13,8 +13,10 @@ import java.util.zip.GZIPInputStream;
+ import java.util.zip.GZIPOutputStream;
+ 
+ import org.bukkit.Bukkit;
+-import blue.lapis.pore.impl.inventory.PoreItemStack;
+ import org.spigotmc.LimitStream;
++//import org.bukkit.craftbukkit.v1_10_R1.inventory.CraftItemStack;
++//import org.spigotmc.LimitStream;
++import org.spongepowered.common.item.inventory.util.ItemStackUtil;
+ 
+ import com.mojang.authlib.GameProfile;
+ import com.mojang.authlib.properties.Property;
+@@ -385,15 +387,15 @@ public class ProtocolSupportPacketDataSerializer extends WrappingBuffer {
+ 
+ 	public static class InternalItemStackWriteEvent extends ItemStackWriteEvent {
+ 
+-		private final PoreItemStack wrapped;
++		private final org.spongepowered.api.item.inventory.ItemStack wrapped;
+ 		public InternalItemStackWriteEvent(ProtocolVersion version, ItemStack original, ItemStack itemstack) {
+-			super(version, PoreItemStack.asCraftMirror(original));
+-			this.wrapped = PoreItemStack.asCraftMirror(itemstack);
++			super(version, (org.bukkit.inventory.ItemStack) ItemStackUtil.fromNative(original));
++			this.wrapped = ItemStackUtil.fromNative(itemstack);
+ 		}
+ 
+ 		@Override
+ 		public org.bukkit.inventory.ItemStack getResult() {
+-			return wrapped;
++			return (org.bukkit.inventory.ItemStack) wrapped;
+ 		}
+ 
+ 	}
+diff --git a/src/protocolsupport/protocol/storage/ThrottleTracker.java b/src/protocolsupport/protocol/storage/ThrottleTracker.java
+index 534d77f..bf3d4df 100644
+--- a/src/protocolsupport/protocol/storage/ThrottleTracker.java
++++ b/src/protocolsupport/protocol/storage/ThrottleTracker.java
+@@ -10,7 +10,7 @@ import protocolsupport.utils.Utils;
+ 
+ public class ThrottleTracker {
+ 
+-	private static final long time = Utils.getServer().server.getConnectionThrottle();
++	private static final long time = -1;//Utils.getServer().server.getConnectionThrottle();
+ 
+ 	private static final Cache<InetAddress, Boolean> tracker = CacheBuilder.newBuilder()
+ 	.concurrencyLevel(Utils.getJavaPropertyValue("io.netty.eventLoopThreads", Runtime.getRuntime().availableProcessors(), Utils.Converter.STRING_TO_INT))
+diff --git a/src/protocolsupport/server/container/ContainerEnchantTable.java b/src/protocolsupport/server/container/ContainerEnchantTable.java
+index ed0c837..a6a754a 100644
+--- a/src/protocolsupport/server/container/ContainerEnchantTable.java
++++ b/src/protocolsupport/server/container/ContainerEnchantTable.java
+@@ -7,10 +7,12 @@ import java.util.List;
+ import java.util.Map;
+ import java.util.Random;
+ 
+-import blue.lapis.pore.impl.inventory.PoreItemStack;
++import org.bukkit.Bukkit;
++import org.bukkit.block.Block;
+ import org.bukkit.entity.Player;
+ import org.bukkit.event.enchantment.EnchantItemEvent;
+ import org.bukkit.event.enchantment.PrepareItemEnchantEvent;
++import org.spongepowered.common.item.inventory.util.ItemStackUtil;
+ 
+ import net.minecraft.util.math.BlockPos;
+ import net.minecraft.init.Blocks;
+@@ -39,10 +41,10 @@ public class ContainerEnchantTable extends net.minecraft.inventory.ContainerEnch
+ 		super(inv, world, pos);
+ 		this.world = world;
+ 		this.position = pos;
+-		this.player = (Player) inv.player.getBukkitEntity();
++		this.player = (Player) inv.player;
+ 	}
+ 
+-	@Override
++	/*@Override
+ 	public void onCraftMatrixChanged(final IInventory iinventory) {
+ 		if (iinventory == tableInventory) {
+ 			final ItemStack itemstack = iinventory.getStackInSlot(0);
+@@ -85,11 +87,11 @@ public class ContainerEnchantTable extends net.minecraft.inventory.ContainerEnch
+ 				}
+ 				final PrepareItemEnchantEvent event = new PrepareItemEnchantEvent(
+ 					player, getBukkitView(),
+-					world.getWorld().getBlockAt(position.getX(), position.getY(), position.getZ()),
+-					PoreItemStack.asCraftMirror(itemstack), enchantLevels, bookShelfs
++					(Block) ((org.spongepowered.api.world.World) world).getLocation(position.getX(), position.getY(), position.getZ()),
++					(org.bukkit.inventory.ItemStack) ItemStackUtil.fromNative(itemstack), enchantLevels, bookShelfs
+ 				);
+ 				event.setCancelled(!itemstack.isItemEnchantable());
+-				world.getServer().getPluginManager().callEvent(event);
++				Bukkit.getServer().getPluginManager().callEvent(event);
+ 				if (event.isCancelled()) {
+ 					Arrays.fill(this.enchantLevels, 0);
+ 					return;
+@@ -111,13 +113,13 @@ public class ContainerEnchantTable extends net.minecraft.inventory.ContainerEnch
+ 				Arrays.fill(this.worldClue, -1);
+ 			}
+ 		}
+-	}
++	}*/
+ 
+ 
+-	@SuppressWarnings("deprecation")
++	/*@SuppressWarnings("deprecation")
+ 	@Override
+ 	public boolean enchantItem(final EntityPlayer entityhuman, final int slot) {
+-		boolean supportsLapisSlot = ProtocolSupportAPI.getProtocolVersion((Player) entityhuman.getBukkitEntity()).isAfterOrEq(ProtocolVersion.MINECRAFT_1_8);
++		boolean supportsLapisSlot = ProtocolSupportAPI.getProtocolVersion((Player) entityhuman).isAfterOrEq(ProtocolVersion.MINECRAFT_1_8);
+ 		ItemStack itemstack = tableInventory.getStackInSlot(0);
+ 		ItemStack lapis = tableInventory.getStackInSlot(1);
+ 		final int cost = slot + 1;
+@@ -134,8 +136,8 @@ public class ContainerEnchantTable extends net.minecraft.inventory.ContainerEnch
+ 			for (final EnchantmentData enchantment : enchantments) {
+ 				enchants.put(org.bukkit.enchantments.Enchantment.getById(Enchantment.getEnchantmentID(enchantment.enchantmentobj)), enchantment.enchantmentLevel);
+ 			}
+-			final PoreItemStack item = PoreItemStack.asCraftMirror(itemstack);
+-			final EnchantItemEvent event = new EnchantItemEvent((Player) entityhuman.getBukkitEntity(), getBukkitView(), world.getWorld().getBlockAt(position.getX(), position.getY(), position.getZ()), item, enchantLevels[slot], enchants, slot);
++			final CraftItemStack item = CraftItemStack.asCraftMirror(itemstack);
++			final EnchantItemEvent event = new EnchantItemEvent((Player) entityhuman, getBukkitView(), world.getWorld().getBlockAt(position.getX(), position.getY(), position.getZ()), item, enchantLevels[slot], enchants, slot);
+ 			world.getServer().getPluginManager().callEvent(event);
+ 			final int level = event.getExpLevelCost();
+ 			if (event.isCancelled() || ((level > entityhuman.experienceLevel) && !entityhuman.capabilities.isCreativeMode) || event.getEnchantsToAdd().isEmpty()) {
+@@ -174,7 +176,7 @@ public class ContainerEnchantTable extends net.minecraft.inventory.ContainerEnch
+ 			return true;
+ 		}
+ 		return false;
+-	}
++	}*/
+ 
+ 	private List<EnchantmentData> getEnchantments(final ItemStack itemstack, final int slot, final int cost) {
+ 		random.setSeed(xpSeed + slot);
+diff --git a/src/protocolsupport/utils/Utils.java b/src/protocolsupport/utils/Utils.java
+index 28a5f4a..40d3381 100644
+--- a/src/protocolsupport/utils/Utils.java
++++ b/src/protocolsupport/utils/Utils.java
+@@ -5,10 +5,14 @@ import java.util.Arrays;
+ import java.util.List;
+ import java.util.Map;
+ 
+-import org.bukkit.Bukkit;
+-import blue.lapis.pore.impl.PoreServer;
++import org.spongepowered.common.SpongeImpl;
+ 
++import io.netty.channel.Channel;
++import net.minecraft.network.NetworkManager;
+ import net.minecraft.server.MinecraftServer;
++import protocolsupport.protocol.pipeline.ChannelHandlers;
++import protocolsupport.protocol.pipeline.common.PacketCompressor;
++import protocolsupport.protocol.pipeline.common.PacketDecompressor;
+ 
+ public class Utils {
+ 
+@@ -103,7 +107,16 @@ public class Utils {
+ 	}
+ 
+ 	public static MinecraftServer getServer() {
+-		return ((PoreServer) Bukkit.getServer()).getServer();
++		return SpongeImpl.getServer();
++	}
++
++	public static Channel getChannel(NetworkManager networkManager) {
++        try {
++            return (Channel) ReflectionUtils.getField(networkManager.getClass(), "field_150746_k").get(networkManager); //channel
++        } catch (IllegalArgumentException | IllegalAccessException e) {
++            e.printStackTrace();
++            throw new RuntimeException("Couldn't get channel!");
++        }
+ 	}
+ 
+ }
+diff --git a/src/protocolsupport/utils/netty/ChannelUtils.java b/src/protocolsupport/utils/netty/ChannelUtils.java
+index 33de90d..036f731 100644
+--- a/src/protocolsupport/utils/netty/ChannelUtils.java
++++ b/src/protocolsupport/utils/netty/ChannelUtils.java
+@@ -3,7 +3,9 @@ package protocolsupport.utils.netty;
+ import java.net.SocketAddress;
+ 
+ import org.bukkit.entity.Player;
++import org.spongepowered.common.entity.EntityUtil;
+ 
++import blue.lapis.pore.impl.entity.PorePlayer;
+ import io.netty.buffer.ByteBuf;
+ import io.netty.channel.Channel;
+ import io.netty.handler.codec.DecoderException;
+@@ -21,7 +23,7 @@ public class ChannelUtils {
+ 
+ 	public static Player getBukkitPlayer(Channel channel) {
+ 		EntityPlayerMP player = getPlayer(getNetworkManager(channel));
+-		return player != null ? player.getBukkitEntity() : null;
++		return player != null ? (Player) PorePlayer.of(EntityUtil.fromNative(player)) : null;
+ 	}
+ 
+ 	public static EntityPlayerMP getPlayer(NetworkManager networkManager) {
+-- 
+2.10.0
+
