@@ -15,5 +15,5 @@ fi
 
 cd "$(dirname "$0")"
 for script in */build.sh; do
-    $script
+    $script || exit 1
 done
