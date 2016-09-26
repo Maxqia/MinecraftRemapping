@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Copyright Max Qian 2016 GPLv2
 
 if [ "$1" != "--nointeract" ]; then
     printf "Warning: This will reset any modified repositories\n"

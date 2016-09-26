@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright Max Qian 2016 GPLv2
+
 cd "$(dirname "$0")"
 
 if [ -d source ]; then

@@ -2,6 +2,8 @@
 import sys
 import os
 
+# Copyright 2016 Max Qian GPLv2
+
 # Given the source of craftbukkit,
 # generate a craftbukkit -> pore remap
 if len(sys.argv) < 2 or "help" in sys.argv[1]:
