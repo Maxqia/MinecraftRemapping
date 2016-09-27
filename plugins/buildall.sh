@@ -14,6 +14,7 @@ if [ "$1" != "--nointeract" ]; then
 fi
 
 cd "$(dirname "$0")"
+mkdir ../build
 for script in */build.sh; do
     $script || exit 1
 done
