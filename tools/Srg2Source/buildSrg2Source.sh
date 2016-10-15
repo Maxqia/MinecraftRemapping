@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright Max Qian 2016 GPLv2
 
 cd "$(dirname "$0")"

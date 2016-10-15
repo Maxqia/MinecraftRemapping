@@ -1,4 +1,4 @@
-From 2ad579caafe36185f781ac4f814ef2ae2dc6b535 Mon Sep 17 00:00:00 2001
+From 43998a9742e6f5bca0bb8c4f02e3e2657a222285 Mon Sep 17 00:00:00 2001
 From: Max Qian <public@maxqia.com>
 Date: Sun, 25 Sep 2016 19:56:09 -0700
 Subject: [PATCH] Sponge Specific Modifications
@@ -6,16 +6,16 @@ Subject: [PATCH] Sponge Specific Modifications
 ---
  build.gradle                                       | 42 +++++++++++++++++++---
  src/org/spigotmc/LimitStream.java                  | 39 ++++++++++++++++++++
+ src/protocolsupport/ProtocolSupport.java           |  3 +-
  src/protocolsupport/api/chat/ChatAPI.java          |  9 +++--
  .../api/chat/modifiers/HoverAction.java            | 18 +++++-----
  src/protocolsupport/api/tab/TabAPI.java            |  6 ++--
  src/protocolsupport/api/title/TitleAPI.java        |  7 ++--
  src/protocolsupport/api/utils/IconUtils.java       |  2 +-
- src/protocolsupport/commands/CommandHandler.java   |  4 +--
+ src/protocolsupport/commands/CommandHandler.java   |  5 +--
  .../commands/ReloadCommandRemover.java             | 10 +++---
  src/protocolsupport/injector/ServerInjector.java   | 10 +++---
- .../injector/network/BasicInjector.java            |  6 ++--
- .../injector/network/NettyInjector.java            |  4 +--
+ .../injector/network/NettyInjector.java            |  6 ++--
  .../protocol/legacyremapper/LegacySound.java       |  5 +--
  .../protocol/packet/ClientBoundPacket.java         |  7 ++--
  .../protocol/packet/ServerBoundPacket.java         |  4 +--
@@ -23,27 +23,15 @@ Subject: [PATCH] Sponge Specific Modifications
  .../packet/handler/AbstractLoginListener.java      | 14 ++++----
  .../protocol/packet/handler/LoginListenerPlay.java | 16 +++++----
  .../protocol/packet/handler/PlayerLookupUUID.java  | 18 +++++-----
- .../protocol/packet/handler/StatusListener.java    | 26 ++++++++++----
+ .../protocol/packet/handler/StatusListener.java    | 25 +++++++++----
  .../packet/handler/common/LegacyLoginListener.java |  6 ++--
- .../play/v_1_4__1_5__1_6/Explosion.java            |  2 --
- .../clientbound/play/v_1_4__1_5__1_6/Map.java      |  2 --
- .../v_1_4__1_5__1_6__1_7/BlockChangeMulti.java     |  2 --
- .../play/v_1_4__1_5__1_6__1_7/PlayerInfo.java      |  2 --
- .../play/v_1_6__1_7/EntitySetAttributes.java       |  3 --
- .../middleimpl/clientbound/play/v_1_7/Map.java     |  2 --
- .../clientbound/play/v_1_7__1_8/Explosion.java     |  2 --
- .../clientbound/play/v_1_7__1_8/Statistics.java    |  2 --
- .../play/v_1_8/EntitySetAttributes.java            |  3 --
- .../middleimpl/clientbound/play/v_1_8/Map.java     |  2 --
- .../clientbound/play/v_1_8/PlayerInfo.java         |  2 --
- .../v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java    |  2 --
  .../pipeline/initial/InitialPacketDecoder.java     |  1 +
- .../ProtocolSupportPacketDataSerializer.java       | 12 ++++---
+ .../ProtocolSupportPacketDataSerializer.java       | 21 +++++------
  .../protocol/storage/ThrottleTracker.java          |  2 +-
  .../server/container/ContainerEnchantTable.java    | 26 +++++++-------
  src/protocolsupport/utils/Utils.java               | 19 ++++++++--
  src/protocolsupport/utils/netty/ChannelUtils.java  |  4 ++-
- 39 files changed, 235 insertions(+), 133 deletions(-)
+ 27 files changed, 238 insertions(+), 112 deletions(-)
  create mode 100644 src/org/spigotmc/LimitStream.java
 
 diff --git a/build.gradle b/build.gradle
@@ -170,6 +158,27 @@ index 0000000..e9e9095
 +        return super.read( b, off, len );
 +    }
 +}
+diff --git a/src/protocolsupport/ProtocolSupport.java b/src/protocolsupport/ProtocolSupport.java
+index d18814b..5038cee 100644
+--- a/src/protocolsupport/ProtocolSupport.java
++++ b/src/protocolsupport/ProtocolSupport.java
+@@ -2,7 +2,6 @@ package protocolsupport;
+ 
+ import org.bukkit.Bukkit;
+ import org.bukkit.plugin.java.JavaPlugin;
+-import org.spigotmc.SpigotConfig;
+ 
+ import net.minecraft.network.NetworkManager;
+ import protocolsupport.commands.CommandHandler;
+@@ -30,7 +29,7 @@ public class ProtocolSupport extends JavaPlugin {
+ 	public void onLoad() {
+ 		try {
+ 			NetworkManager.NETWORK_MARKER.getName();
+-			SpigotConfig.config.contains("test");
++			//SpigotConfig.config.contains("test");
+ 		} catch (NoClassDefFoundError e) {
+ 			getLogger().severe("Unsupported server version, shutting down");
+ 			Bukkit.shutdown();
 diff --git a/src/protocolsupport/api/chat/ChatAPI.java b/src/protocolsupport/api/chat/ChatAPI.java
 index a8bb375..9505902 100644
 --- a/src/protocolsupport/api/chat/ChatAPI.java
@@ -304,7 +313,7 @@ index bc0ea90..9949445 100644
  
  }
 diff --git a/src/protocolsupport/api/title/TitleAPI.java b/src/protocolsupport/api/title/TitleAPI.java
-index 807024d..1b5e33a 100644
+index c67ef9f..24af73d 100644
 --- a/src/protocolsupport/api/title/TitleAPI.java
 +++ b/src/protocolsupport/api/title/TitleAPI.java
 @@ -1,12 +1,13 @@
@@ -323,11 +332,11 @@ index 807024d..1b5e33a 100644
  import protocolsupport.api.chat.ChatAPI;
  import protocolsupport.api.chat.components.BaseComponent;
 @@ -22,7 +23,7 @@ public class TitleAPI {
- 		if (titleJson == null && subtitleJson == null) {
+ 		if ((titleJson == null) && (subtitleJson == null)) {
  			throw new IllegalArgumentException("Title and subtitle can't be both null");
  		}
 -		NetHandlerPlayServer connection = ((PorePlayer) player).getHandle().connection;
-+		NetHandlerPlayServer connection = ((EntityPlayerMP) ((PorePlayer) player).getHandle()).connection;
++		NetHandlerPlayServer connection = ((EntityPlayerMP) player).connection;
  		if (titleJson != null) {
  			connection.sendPacket(new SPacketTitle(Type.TITLE, Serializer.jsonToComponent(titleJson)));
  		}
@@ -356,32 +365,32 @@ index fc0c8ad..17e9ecd 100644
  public class IconUtils {
  
 diff --git a/src/protocolsupport/commands/CommandHandler.java b/src/protocolsupport/commands/CommandHandler.java
-index dc57b0e..d03136c 100644
+index 9332f64..b526f44 100644
 --- a/src/protocolsupport/commands/CommandHandler.java
 +++ b/src/protocolsupport/commands/CommandHandler.java
-@@ -34,7 +34,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
- 			}
+@@ -37,14 +37,15 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
  			return true;
  		}
--		if (args.length == 1 && args[0].equalsIgnoreCase("debug")) {
-+		/*if (args.length == 1 && args[0].equalsIgnoreCase("debug")) { //Can't do this in sponge
- 			PropertyManager manager = Utils.getServer().getPropertyManager();
+ 		if ((args.length == 1) && args[0].equalsIgnoreCase("debug")) {
+-			PropertyManager manager = Utils.getServer().getPropertyManager();
++			/*PropertyManager manager = Utils.getServer().getPropertyManager();
  			if (!manager.getBooleanProperty(DEBUG_PROPERTY, false)) {
  				manager.setProperty(DEBUG_PROPERTY, Boolean.TRUE);
-@@ -44,7 +44,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
+ 				sender.sendMessage(ChatColor.GOLD + "Enabled debug");
+ 			} else {
+ 				manager.setProperty(DEBUG_PROPERTY, Boolean.FALSE);
  				sender.sendMessage(ChatColor.GOLD + "Disabled debug");
- 			}
+-			}
++			}*/
++			sender.sendMessage(ChatColor.GOLD + "Doesn't work in sponge, please change your debug mode in server.properties");
  			return true;
--		}
-+		}*/
- 		return false;
- 	}
- 
+ 		}
+ 		if ((args.length == 1) && args[0].equalsIgnoreCase("leakdetector")) {
 diff --git a/src/protocolsupport/commands/ReloadCommandRemover.java b/src/protocolsupport/commands/ReloadCommandRemover.java
-index d1749eb..157c8e2 100644
+index 5f26418..971fdf1 100644
 --- a/src/protocolsupport/commands/ReloadCommandRemover.java
 +++ b/src/protocolsupport/commands/ReloadCommandRemover.java
-@@ -13,8 +13,8 @@ import protocolsupport.utils.ReflectionUtils;
+@@ -15,8 +15,8 @@ import protocolsupport.utils.ReflectionUtils;
  public class ReloadCommandRemover {
  
  	@SuppressWarnings("unchecked")
@@ -392,7 +401,7 @@ index d1749eb..157c8e2 100644
  			PluginManager pluginmanager = Bukkit.getPluginManager();
  			CommandMap commandMap = (CommandMap) ReflectionUtils.getField(pluginmanager.getClass(), "commandMap").get(pluginmanager);
  			Collection<Command> commands = (Collection<Command>) ReflectionUtils.getMethod(commandMap.getClass(), "getCommands", 0).invoke(commandMap);
-@@ -24,10 +24,10 @@ public class ReloadCommandRemover {
+@@ -26,10 +26,10 @@ public class ReloadCommandRemover {
  				}
  			}
  		} catch (Throwable t) {
@@ -405,7 +414,7 @@ index d1749eb..157c8e2 100644
  		cmd.unregister(commandMap);
  		if (commands.getClass().getSimpleName().equals("UnmodifiableCollection")) {
  			Field originalField = commands.getClass().getDeclaredField("c");
-@@ -38,6 +38,6 @@ public class ReloadCommandRemover {
+@@ -40,6 +40,6 @@ public class ReloadCommandRemover {
  		} else {
  			commands.remove(cmd);
  		}
@@ -452,23 +461,23 @@ index e84bd55..55c15d9 100644
  					}
  					ReflectionUtils.setStaticFinalField(field, newblock);
  				}
-diff --git a/src/protocolsupport/injector/network/BasicInjector.java b/src/protocolsupport/injector/network/BasicInjector.java
-index ed357c4..3541ce5 100644
---- a/src/protocolsupport/injector/network/BasicInjector.java
-+++ b/src/protocolsupport/injector/network/BasicInjector.java
-@@ -26,9 +26,9 @@ public class BasicInjector {
+diff --git a/src/protocolsupport/injector/network/NettyInjector.java b/src/protocolsupport/injector/network/NettyInjector.java
+index c597d64..db85c13 100644
+--- a/src/protocolsupport/injector/network/NettyInjector.java
++++ b/src/protocolsupport/injector/network/NettyInjector.java
+@@ -22,9 +22,9 @@ public class NettyInjector {
+ 
+ 	@SuppressWarnings("unchecked")
+ 	public static void inject() throws IllegalArgumentException, IllegalAccessException, NoSuchFieldException, SecurityException {
+-		if (Utils.getServer().shouldUseNativeTransport()) {
++		/*if (Utils.getServer().shouldUseNativeTransport()) {
+ 			ProtocolSupport.logWarning("Native transport is enabled, this may cause issues. Disable it by setting use-native-transport in server.properties to false.");
+-		}
++		}*/
+ 		NetworkSystem serverConnection = Utils.getServer().getNetworkSystem();
+ 		List<NetworkManager> nmList = null;
  		try {
- 			nmList = (List<NetworkManager>) ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("pending")).get(serverConnection);
- 		} catch (NoSuchFieldException e) {
--			nmList = (List<NetworkManager>) ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("h")).get(serverConnection);
-+			nmList = (List<NetworkManager>) ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("field_151272_f")).get(serverConnection); //h
- 		}
--		Field connectionsListField = ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("g"));
-+		Field connectionsListField = ReflectionUtils.setAccessible(NetworkSystem.class.getDeclaredField("field_151274_e")); //g
- 		ChannelInjectList connectionsList = new ChannelInjectList(nmList, (List<ChannelFuture>) connectionsListField.get(serverConnection));
- 		connectionsListField.set(serverConnection, connectionsList);
- 		connectionsList.injectExisting();
-@@ -108,7 +108,7 @@ public class BasicInjector {
+@@ -112,7 +112,7 @@ public class NettyInjector {
  			}
  			synchronized (networkManagersList) {
  				for (NetworkManager nm : networkManagersList) {
@@ -477,22 +486,6 @@ index ed357c4..3541ce5 100644
  						nm.closeChannel(new TextComponentString("ProtocolSupport channel reset"));
  					}
  				}
-diff --git a/src/protocolsupport/injector/network/NettyInjector.java b/src/protocolsupport/injector/network/NettyInjector.java
-index b0d8fc4..03dedcc 100644
---- a/src/protocolsupport/injector/network/NettyInjector.java
-+++ b/src/protocolsupport/injector/network/NettyInjector.java
-@@ -6,9 +6,9 @@ import protocolsupport.utils.Utils;
- public class NettyInjector {
- 
- 	public static void inject() throws IllegalArgumentException, IllegalAccessException, NoSuchFieldException, SecurityException {
--		if (Utils.getServer().shouldUseNativeTransport()) {
-+		/*if (Utils.getServer().shouldUseNativeTransport()) {
- 			ProtocolSupport.logWarning("Native transport is enabled, this may cause issues. Disable it by setting use-native-transport in server.properties to false.");
--		}
-+		}*/
- 		BasicInjector.inject();
- 	}
- 
 diff --git a/src/protocolsupport/protocol/legacyremapper/LegacySound.java b/src/protocolsupport/protocol/legacyremapper/LegacySound.java
 index 282e633..b9ccf19 100644
 --- a/src/protocolsupport/protocol/legacyremapper/LegacySound.java
@@ -520,10 +513,10 @@ index 282e633..b9ccf19 100644
  			block.getX(), block.getY(), block.getZ(),
  			(blocksound.getVolume() + 1.0F) / 2.0F,
 diff --git a/src/protocolsupport/protocol/packet/ClientBoundPacket.java b/src/protocolsupport/protocol/packet/ClientBoundPacket.java
-index 3f12dec..fe960c7 100644
+index f83026a..e7a8256 100644
 --- a/src/protocolsupport/protocol/packet/ClientBoundPacket.java
 +++ b/src/protocolsupport/protocol/packet/ClientBoundPacket.java
-@@ -43,7 +43,6 @@ import net.minecraft.network.play.server.SPacketExplosion;
+@@ -45,7 +45,6 @@ import net.minecraft.network.play.server.SPacketExplosion;
  import net.minecraft.network.play.server.SPacketChangeGameState;
  import net.minecraft.network.play.server.SPacketHeldItemChange;
  import net.minecraft.network.play.server.SPacketKeepAlive;
@@ -531,7 +524,7 @@ index 3f12dec..fe960c7 100644
  import net.minecraft.network.play.server.SPacketJoinGame;
  import net.minecraft.network.play.server.SPacketMaps;
  import net.minecraft.network.play.server.SPacketChunkData;
-@@ -158,7 +157,7 @@ public class ClientBoundPacket {
+@@ -163,7 +162,7 @@ public class ClientBoundPacket {
  	public static final int PLAY_SCOREBOARD_DISPLAY_SLOT_ID = getId(SPacketDisplayObjective.class);
  	public static final int PLAY_SCOREBOARD_TEAM_ID = getId(SPacketTeams.class);
  	public static final int PLAY_CUSTOM_PAYLOAD_ID = getId(SPacketCustomPayload.class);
@@ -540,7 +533,7 @@ index 3f12dec..fe960c7 100644
  	public static final int PLAY_RESOURCE_PACK_ID = getId(SPacketResourcePackSend.class);
  	public static final int PLAY_CAMERA_ID = getId(SPacketCamera.class);
  	public static final int PLAY_WORLD_BORDER_ID = getId(SPacketWorldBorder.class);
-@@ -174,14 +173,14 @@ public class ClientBoundPacket {
+@@ -184,14 +183,14 @@ public class ClientBoundPacket {
  	private static final int getId(Class<?> packetClass) {
  		Map<Class<? extends Packet<?>>, EnumConnectionState> protocolMap = null;
  		try {
@@ -558,10 +551,10 @@ index 3f12dec..fe960c7 100644
  			SneakyThrow.sneaky(t);
  		}
 diff --git a/src/protocolsupport/protocol/packet/ServerBoundPacket.java b/src/protocolsupport/protocol/packet/ServerBoundPacket.java
-index 819cf45..1b8bb09 100644
+index 6164409..c03df67 100644
 --- a/src/protocolsupport/protocol/packet/ServerBoundPacket.java
 +++ b/src/protocolsupport/protocol/packet/ServerBoundPacket.java
-@@ -86,14 +86,14 @@ public enum ServerBoundPacket {
+@@ -90,14 +90,14 @@ public enum ServerBoundPacket {
  	ServerBoundPacket(Class<? extends Packet<?>> packetClass) {
  		Map<Class<? extends Packet<?>>, EnumConnectionState> protocolMap = null;
  		try {
@@ -579,7 +572,7 @@ index 819cf45..1b8bb09 100644
  			SneakyThrow.sneaky(t);
  		}
 diff --git a/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java b/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java
-index b59dfd4..78bb481 100644
+index 897c398..9f3ca70 100644
 --- a/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java
 +++ b/src/protocolsupport/protocol/packet/handler/AbstractHandshakeListener.java
 @@ -5,7 +5,8 @@ import java.net.InetSocketAddress;
@@ -592,7 +585,7 @@ index b59dfd4..78bb481 100644
  
  import com.google.gson.Gson;
  import com.mojang.authlib.properties.Property;
-@@ -26,6 +27,7 @@ import net.minecraft.network.login.server.SPacketDisconnect;
+@@ -24,6 +25,7 @@ import net.minecraft.network.login.server.SPacketDisconnect;
  import protocolsupport.api.ProtocolVersion;
  import protocolsupport.protocol.storage.ProtocolStorage;
  import protocolsupport.protocol.storage.ThrottleTracker;
@@ -600,7 +593,7 @@ index b59dfd4..78bb481 100644
  import protocolsupport.utils.Utils;
  
  public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
-@@ -47,7 +49,7 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
+@@ -45,7 +47,7 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
  				networkManager.setConnectionState(EnumConnectionState.LOGIN);
  				try {
  					final InetAddress address = ((InetSocketAddress) networkManager.getRemoteAddress()).getAddress();
@@ -609,7 +602,7 @@ index b59dfd4..78bb481 100644
  						if (ThrottleTracker.throttle(address)) {
  							final TextComponentString chatcomponenttext = new TextComponentString("Connection throttled! Please wait before reconnecting.");
  							networkManager.sendPacket(new SPacketDisconnect(chatcomponenttext), new GenericFutureListener<Future<? super Void>>() {
-@@ -74,8 +76,10 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
+@@ -72,8 +74,10 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
  					break;
  				}
  				networkManager.setNetHandler(getLoginListener(networkManager));
@@ -622,7 +615,7 @@ index b59dfd4..78bb481 100644
  					if ((split.length != 3) && (split.length != 4)) {
  						final TextComponentString chatcomponenttext = new TextComponentString("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
  						networkManager.sendPacket(new SPacketDisconnect(chatcomponenttext), new GenericFutureListener<Future<? super Void>>() {
-@@ -86,19 +90,22 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
+@@ -84,19 +88,22 @@ public abstract class AbstractHandshakeListener extends NetHandlerHandshakeTCP {
  						});
  						return;
  					}
@@ -651,7 +644,7 @@ index b59dfd4..78bb481 100644
  			}
  			case STATUS: {
 diff --git a/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java b/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java
-index 801cbf4..2898ffa 100644
+index 6c78b13..3cbd977 100644
 --- a/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java
 +++ b/src/protocolsupport/protocol/packet/handler/AbstractLoginListener.java
 @@ -42,6 +42,7 @@ import protocolsupport.api.events.PlayerLoginStartEvent;
@@ -723,7 +716,7 @@ index 801cbf4..2898ffa 100644
  		listener.finishLogin();
  	}
 diff --git a/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java b/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java
-index e09bd91..283dec9 100644
+index c901ab7..aed2cf8 100644
 --- a/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java
 +++ b/src/protocolsupport/protocol/packet/handler/LoginListenerPlay.java
 @@ -20,6 +20,7 @@ import net.minecraft.util.text.ITextComponent;
@@ -776,7 +769,7 @@ index e09bd91..283dec9 100644
  					public void run() {
  						disconnect0(s);
 diff --git a/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java b/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java
-index f7a03e7..e018a2c 100644
+index 2d68199..84a4dbb 100644
 --- a/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java
 +++ b/src/protocolsupport/protocol/packet/handler/PlayerLookupUUID.java
 @@ -7,12 +7,14 @@ import java.util.ArrayList;
@@ -838,7 +831,7 @@ index f7a03e7..e018a2c 100644
  		listener.setReadyToAccept();
  	}
 diff --git a/src/protocolsupport/protocol/packet/handler/StatusListener.java b/src/protocolsupport/protocol/packet/handler/StatusListener.java
-index 5cf3131..add10a3 100644
+index b1491d1..ccb8ecc 100644
 --- a/src/protocolsupport/protocol/packet/handler/StatusListener.java
 +++ b/src/protocolsupport/protocol/packet/handler/StatusListener.java
 @@ -10,12 +10,13 @@ import java.util.List;
@@ -866,11 +859,7 @@ index 5cf3131..add10a3 100644
  import net.minecraft.network.NetworkManager;
  import net.minecraft.network.status.client.CPacketPing;
  import net.minecraft.network.status.client.CPacketServerQuery;
-@@ -34,9 +36,11 @@ import net.minecraft.network.ServerStatusResponse;
- import net.minecraft.network.ServerStatusResponse.Version;
- import net.minecraft.network.ServerStatusResponse.Players;
- 
-+
+@@ -36,6 +38,7 @@ import net.minecraft.network.ServerStatusResponse.Players;
  import protocolsupport.api.ProtocolVersion;
  import protocolsupport.api.events.ServerPingResponseEvent;
  import protocolsupport.api.events.ServerPingResponseEvent.ProtocolInfo;
@@ -878,7 +867,7 @@ index 5cf3131..add10a3 100644
  
  public class StatusListener extends NetHandlerStatusServer {
  
-@@ -55,7 +59,8 @@ public class StatusListener extends NetHandlerStatusServer {
+@@ -54,7 +57,8 @@ public class StatusListener extends NetHandlerStatusServer {
  
  	private boolean sentInfo = false;
  
@@ -888,11 +877,11 @@ index 5cf3131..add10a3 100644
  	public void processServerQuery(CPacketServerQuery packetstatusinstart) {
  		if (sentInfo) {
  			nmanager.closeChannel(infoAlreadySent);
-@@ -64,7 +69,14 @@ public class StatusListener extends NetHandlerStatusServer {
+@@ -63,7 +67,14 @@ public class StatusListener extends NetHandlerStatusServer {
  
  		InetSocketAddress addr = (InetSocketAddress) nmanager.getRemoteAddress();
  
--		ArrayList<EntityPlayerMP> players = new ArrayList<EntityPlayerMP>(server.getPlayerList().playerEntityList);
+-		ArrayList<EntityPlayerMP> players = new ArrayList<>(server.getPlayerList().playerEntityList);
 +		ArrayList<EntityPlayerMP> players = null;
 +		try {
 +		    PlayerList list = server.getPlayerList();
@@ -904,7 +893,7 @@ index 5cf3131..add10a3 100644
  
  		String motd = server.getMOTD();
  		int maxPlayers = server.getPlayerList().getMaxPlayers();
-@@ -101,7 +113,7 @@ public class StatusListener extends NetHandlerStatusServer {
+@@ -100,7 +111,7 @@ public class StatusListener extends NetHandlerStatusServer {
  		for (int i = 0; i < profiles.size(); i++) {
  			gprofiles[i] = new GameProfile(profileUUID, profiles.get(i));
  		}
@@ -913,7 +902,7 @@ index 5cf3131..add10a3 100644
  		playerSample.setPlayers(gprofiles);
  
  		ServerStatusResponse serverping = new ServerStatusResponse();
-@@ -152,7 +164,7 @@ public class StatusListener extends NetHandlerStatusServer {
+@@ -151,7 +162,7 @@ public class StatusListener extends NetHandlerStatusServer {
  
  				@Override
  				public Player next() {
@@ -950,169 +939,11 @@ index 4426700..0e3ff4c 100644
  	}
 -
  }
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java
-index 33409f0..319b2eb 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Explosion.java
-@@ -7,8 +7,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleExplosion.AffectedBlock;
--
- public class Explosion extends MiddleExplosion<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java
-index 51f7262..afc7701 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6/Map.java
-@@ -13,8 +13,6 @@ import protocolsupport.protocol.typeremapper.id.RemappingTable.ArrayBasedIdRemap
- import protocolsupport.utils.recyclable.RecyclableArrayList;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleMap.Icon;
--
- public class Map extends MiddleMap<RecyclableCollection<PacketData>> {
- 
- 	private static final int mapId = Item.getIdFromItem(Items.FILLED_MAP);
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java
-index c7529d1..806bdda 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/BlockChangeMulti.java
-@@ -9,8 +9,6 @@ import protocolsupport.protocol.typeremapper.id.RemappingTable.ArrayBasedIdRemap
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleBlockChangeMulti.Record;
--
- public class BlockChangeMulti extends MiddleBlockChangeMulti<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java
-index 86ca361..76ee17a 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_4__1_5__1_6__1_7/PlayerInfo.java
-@@ -8,8 +8,6 @@ import protocolsupport.utils.Utils;
- import protocolsupport.utils.recyclable.RecyclableArrayList;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddlePlayerInfo.Info;
--
- public class PlayerInfo extends MiddlePlayerInfo<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java
-index 8c3aa7c..87b887f 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_6__1_7/EntitySetAttributes.java
-@@ -11,9 +11,6 @@ import protocolsupport.protocol.typeskipper.string.StringSkipper;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Attribute;
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Modifier;
--
- public class EntitySetAttributes extends MiddleEntitySetAttributes<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java
-index 113fa00..993cda8 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7/Map.java
-@@ -9,8 +9,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
- import protocolsupport.utils.recyclable.RecyclableArrayList;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleMap.Icon;
--
- public class Map extends MiddleMap<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java
-index e73624d..75b66b0 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Explosion.java
-@@ -7,8 +7,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleExplosion.AffectedBlock;
--
- public class Explosion extends MiddleExplosion<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java
-index e064b52..733334a 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_7__1_8/Statistics.java
-@@ -9,8 +9,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleStatistics.Statistic;
--
- public class Statistics extends MiddleStatistics<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java
-index 7db4681..cceed56 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/EntitySetAttributes.java
-@@ -12,9 +12,6 @@ import protocolsupport.protocol.typeskipper.string.StringSkipper;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Attribute;
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleEntitySetAttributes.Modifier;
--
- public class EntitySetAttributes extends MiddleEntitySetAttributes<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java
-index 4d3d274..4f6c193 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/Map.java
-@@ -7,8 +7,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleMap.Icon;
--
- public class Map extends MiddleMap<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java
-index 2c5ab23..e2688c5 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8/PlayerInfo.java
-@@ -11,8 +11,6 @@ import protocolsupport.protocol.packet.middleimpl.PacketData;
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddlePlayerInfo.Info;
--
- public class PlayerInfo extends MiddlePlayerInfo<RecyclableCollection<PacketData>> {
- 
- 	@Override
-diff --git a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java
-index 356b57d..beb59ff 100644
---- a/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java
-+++ b/src/protocolsupport/protocol/packet/middleimpl/clientbound/play/v_1_8__1_9_r1__1_9_r2/BlockChangeMulti.java
-@@ -11,8 +11,6 @@ import protocolsupport.protocol.typeremapper.id.RemappingTable.ArrayBasedIdRemap
- import protocolsupport.utils.recyclable.RecyclableCollection;
- import protocolsupport.utils.recyclable.RecyclableSingletonList;
- 
--import protocolsupport.protocol.packet.middle.clientbound.play.MiddleBlockChangeMulti.Record;
--
- public class BlockChangeMulti extends MiddleBlockChangeMulti<RecyclableCollection<PacketData>> {
- 
- 	@Override
 diff --git a/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java b/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java
-index de13d3a..dedc1b6 100644
+index 3298dd3..c44e984 100644
 --- a/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java
 +++ b/src/protocolsupport/protocol/pipeline/initial/InitialPacketDecoder.java
-@@ -96,6 +96,7 @@ public class InitialPacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
+@@ -95,6 +95,7 @@ public class InitialPacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
  	}
  
  	private void decode(ChannelHandlerContext ctx) throws Exception {
@@ -1121,22 +952,49 @@ index de13d3a..dedc1b6 100644
  		Channel channel = ctx.channel();
  		int firstbyte = replayingBuffer.readUnsignedByte();
 diff --git a/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java b/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java
-index b91a2ea..f05a7ff 100644
+index 36689a8..e521204 100644
 --- a/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java
 +++ b/src/protocolsupport/protocol/serializer/ProtocolSupportPacketDataSerializer.java
-@@ -13,8 +13,10 @@ import java.util.zip.GZIPInputStream;
+@@ -13,12 +13,14 @@ import java.util.zip.GZIPInputStream;
  import java.util.zip.GZIPOutputStream;
  
  import org.bukkit.Bukkit;
 -import blue.lapis.pore.impl.inventory.PoreItemStack;
+-import blue.lapis.pore.impl.potion.PorePotionUtil;
++//import blue.lapis.pore.impl.inventory.PoreItemStack;
++//import blue.lapis.pore.impl.potion.PorePotionUtil;
+ import org.bukkit.potion.PotionData;
+ import org.bukkit.potion.PotionEffectType;
+ import org.bukkit.potion.PotionType;
  import org.spigotmc.LimitStream;
-+//import org.bukkit.craftbukkit.v1_10_R1.inventory.CraftItemStack;
-+//import org.spigotmc.LimitStream;
 +import org.spongepowered.common.item.inventory.util.ItemStackUtil;
++import org.spongepowered.common.registry.type.effect.PotionEffectTypeRegistryModule;
  
  import com.mojang.authlib.GameProfile;
  import com.mojang.authlib.properties.Property;
-@@ -385,15 +387,15 @@ public class ProtocolSupportPacketDataSerializer extends WrappingBuffer {
+@@ -31,6 +33,7 @@ import io.netty.handler.codec.DecoderException;
+ import io.netty.handler.codec.EncoderException;
+ import net.minecraft.entity.EntityList;
+ import net.minecraft.nbt.NBTUtil;
++import net.minecraft.potion.Potion;
+ import net.minecraft.item.Item;
+ import net.minecraft.item.ItemPotion;
+ import net.minecraft.item.ItemStack;
+@@ -366,11 +369,9 @@ public class ProtocolSupportPacketDataSerializer extends WrappingBuffer {
+ 						for (int i = 0; i < tagList.tagCount(); i++) {
+ 							NBTTagCompound nbtTag = tagList.getCompoundTagAt(i);
+ 							Integer potionId = nbtTag.getInteger("Id");
+-							PotionEffectType effectType = PotionEffectType.getById(potionId);
+-							PotionType type = PotionType.getByEffect(effectType);
++							Potion type = Potion.getPotionById(potionId);
+ 							if (type != null) {
+-								PotionData data = new PotionData(type, false, false);
+-								potion = PorePotionUtil.fromBukkit(data);
++								potion = type.getName();
+ 								break;
+ 							}
+ 						}
+@@ -457,15 +458,15 @@ public class ProtocolSupportPacketDataSerializer extends WrappingBuffer {
  
  	public static class InternalItemStackWriteEvent extends ItemStackWriteEvent {
  
@@ -1170,7 +1028,7 @@ index 534d77f..bf3d4df 100644
  	private static final Cache<InetAddress, Boolean> tracker = CacheBuilder.newBuilder()
  	.concurrencyLevel(Utils.getJavaPropertyValue("io.netty.eventLoopThreads", Runtime.getRuntime().availableProcessors(), Utils.Converter.STRING_TO_INT))
 diff --git a/src/protocolsupport/server/container/ContainerEnchantTable.java b/src/protocolsupport/server/container/ContainerEnchantTable.java
-index ed0c837..a6a754a 100644
+index 40ff454..bad51bd 100644
 --- a/src/protocolsupport/server/container/ContainerEnchantTable.java
 +++ b/src/protocolsupport/server/container/ContainerEnchantTable.java
 @@ -7,10 +7,12 @@ import java.util.List;
@@ -1253,7 +1111,7 @@ index ed0c837..a6a754a 100644
  	private List<EnchantmentData> getEnchantments(final ItemStack itemstack, final int slot, final int cost) {
  		random.setSeed(xpSeed + slot);
 diff --git a/src/protocolsupport/utils/Utils.java b/src/protocolsupport/utils/Utils.java
-index 28a5f4a..40d3381 100644
+index e03af86..27716c3 100644
 --- a/src/protocolsupport/utils/Utils.java
 +++ b/src/protocolsupport/utils/Utils.java
 @@ -5,10 +5,14 @@ import java.util.Arrays;
