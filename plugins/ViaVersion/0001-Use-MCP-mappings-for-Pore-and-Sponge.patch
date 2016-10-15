@@ -1,31 +1,30 @@
-From 615bf4ac496ba23aafa3e5c29811f40eef63102a Mon Sep 17 00:00:00 2001
+From e3417890c52aee9bcc15aae65cc1c071dedfdd32 Mon Sep 17 00:00:00 2001
 From: Max Qian <public@maxqia.com>
 Date: Thu, 4 Aug 2016 17:41:53 -0700
 Subject: [PATCH] Use MCP mappings for Pore and Sponge IT
  W!@#OJSOKAORrKKS!?#!?!?@!?
 
 ---
- .../java/us/myles/ViaVersion/ViaVersionPlugin.java     | 16 ++++++++--------
- .../protocols/protocol1_9to1_8/Protocol1_9TO1_8.java   |  2 +-
- .../protocols/protocol1_9to1_8/ViaIdleThread.java      |  4 ++--
- .../protocol1_9to1_8/storage/ClientChunks.java         | 18 +++++++++---------
- .../java/us/myles/ViaVersion/util/ReflectionUtil.java  | 13 +++++++------
- 5 files changed, 27 insertions(+), 26 deletions(-)
+ .../bukkit/platform/BukkitViaInjector.java           | 16 ++++++++--------
+ .../providers/BukkitViaBulkChunkTranslator.java      | 20 ++++++++++----------
+ .../providers/BukkitViaMovementTransmitter.java      |  4 ++--
+ .../us/myles/ViaVersion/bukkit/util/NMSUtil.java     | 11 ++++++-----
+ 4 files changed, 26 insertions(+), 25 deletions(-)
 
-diff --git a/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java b/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java
-index 8471af2..fe9217a 100644
---- a/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java
-+++ b/src/main/java/us/myles/ViaVersion/ViaVersionPlugin.java
-@@ -158,14 +158,14 @@ public class ViaVersionPlugin extends JavaPlugin implements ViaVersionAPI {
- 
-     public void gatherProtocolVersion() {
+diff --git a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/platform/BukkitViaInjector.java b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/platform/BukkitViaInjector.java
+index ef06a64..5554b94 100644
+--- a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/platform/BukkitViaInjector.java
++++ b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/platform/BukkitViaInjector.java
+@@ -129,14 +129,14 @@ public class BukkitViaInjector implements ViaInjector {
+     @Override
+     public int getServerProtocolVersion() throws Exception {
          try {
--            Class<?> serverClazz = ReflectionUtil.nms("MinecraftServer");
+-            Class<?> serverClazz = NMSUtil.nms("MinecraftServer");
 -            Object server = ReflectionUtil.invokeStatic(serverClazz, "getServer");
--            Class<?> pingClazz = ReflectionUtil.nms("ServerPing");
-+            Class<?> serverClazz = ReflectionUtil.nms("server.MinecraftServer");
+-            Class<?> pingClazz = NMSUtil.nms("ServerPing");
++            Class<?> serverClazz = NMSUtil.nms("server.MinecraftServer");
 +            Object server = ReflectionUtil.invokeStatic(serverClazz, "func_71276_C"); //getServer
-+            Class<?> pingClazz = ReflectionUtil.nms("network.ServerStatusResponse"); //ServerPing
++            Class<?> pingClazz = NMSUtil.nms("network.ServerStatusResponse"); //ServerPing
              Object ping = null;
              // Search for ping method
              for (Field f : serverClazz.getDeclaredFields()) {
@@ -35,7 +34,7 @@ index 8471af2..fe9217a 100644
                          f.setAccessible(true);
                          ping = f.get(server);
                      }
-@@ -175,7 +175,7 @@ public class ViaVersionPlugin extends JavaPlugin implements ViaVersionAPI {
+@@ -146,7 +146,7 @@ public class BukkitViaInjector implements ViaInjector {
                  Object serverData = null;
                  for (Field f : pingClazz.getDeclaredFields()) {
                      if (f.getType() != null) {
@@ -44,13 +43,13 @@ index 8471af2..fe9217a 100644
                              f.setAccessible(true);
                              serverData = f.get(ping);
                          }
-@@ -204,12 +204,12 @@ public class ViaVersionPlugin extends JavaPlugin implements ViaVersionAPI {
+@@ -184,12 +184,12 @@ public class BukkitViaInjector implements ViaInjector {
      }
  
-     public Object getServerConnection() throws Exception {
--        Class<?> serverClazz = ReflectionUtil.nms("MinecraftServer");
+     public static Object getServerConnection() throws Exception {
+-        Class<?> serverClazz = NMSUtil.nms("MinecraftServer");
 -        Object server = ReflectionUtil.invokeStatic(serverClazz, "getServer");
-+        Class<?> serverClazz = ReflectionUtil.nms("server.MinecraftServer");
++        Class<?> serverClazz = NMSUtil.nms("server.MinecraftServer");
 +        Object server = ReflectionUtil.invokeStatic(serverClazz, "func_71276_C"); //getServer
          Object connection = null;
          for (Method m : serverClazz.getDeclaredMethods()) {
@@ -60,58 +59,23 @@ index 8471af2..fe9217a 100644
                      if (m.getParameterTypes().length == 0) {
                          connection = m.invoke(server);
                      }
-diff --git a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java
-index 05cc8bc..95259e7 100644
---- a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java
-+++ b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/Protocol1_9TO1_8.java
-@@ -125,7 +125,7 @@ public class Protocol1_9TO1_8 extends Protocol {
- 
-     @Override
-     public boolean isFiltered(Class packetClass) {
--        return packetClass.getName().endsWith("PacketPlayOutMapChunkBulk");
-+        return packetClass.getName().endsWith("S26PacketMapChunkBulk"); //PacketPlayOutMapChunkBulk
-     }
- 
-     @Override
-diff --git a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java
-index c2498a4..f497fa2 100644
---- a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java
-+++ b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/ViaIdleThread.java
-@@ -34,7 +34,7 @@ public class ViaIdleThread extends BukkitRunnable {
-         this.portedPlayers = portedPlayers;
-         Class<?> idlePacketClass;
-         try {
--            idlePacketClass = ReflectionUtil.nms("PacketPlayInFlying");
-+            idlePacketClass = ReflectionUtil.nms("network.play.client.C03PacketPlayer"); //PacketPlayInFlying
-         } catch (ClassNotFoundException e) {
-             throw new RuntimeException("Couldn't find idle packet, help!", e);
-         }
-@@ -42,7 +42,7 @@ public class ViaIdleThread extends BukkitRunnable {
-             idlePacket = idlePacketClass.newInstance();
-             idlePacket2 = idlePacketClass.newInstance();
- 
--            Field flying = idlePacketClass.getDeclaredField("f");
-+            Field flying = idlePacketClass.getDeclaredField("field_149474_g"); //f
-             flying.setAccessible(true);
- 
-             flying.set(idlePacket2, true);
-diff --git a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java
-index 153b479..9677d42 100644
---- a/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java
-+++ b/src/main/java/us/myles/ViaVersion/protocols/protocol1_9to1_8/storage/ClientChunks.java
-@@ -27,8 +27,8 @@ public class ClientChunks extends StoredObject {
+diff --git a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaBulkChunkTranslator.java b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaBulkChunkTranslator.java
+index fd4a3a2..80bfb43 100644
+--- a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaBulkChunkTranslator.java
++++ b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaBulkChunkTranslator.java
+@@ -20,8 +20,8 @@ public class BukkitViaBulkChunkTranslator extends BulkChunkTranslatorProvider {
  
      static {
          try {
--            mapChunkBulkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("PacketPlayOutMapChunkBulk"));
--            mapChunkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("PacketPlayOutMapChunk"));
-+            mapChunkBulkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("network.play.server.S26PacketMapChunkBulk")); //PacketPlayOutMapChunkBulk
-+            mapChunkRef = new ReflectionUtil.ClassReflection(ReflectionUtil.nms("network.play.server.S21PacketChunkData")); //PacketPlayOutMapChunk
-             if (ViaVersion.getInstance().isSpigot()) {
-                 obfuscateRef = Class.forName("org.spigotmc.AntiXray").getMethod("obfuscate", int.class, int.class, int.class, byte[].class, ReflectionUtil.nms("World"));
-                 worldRef = ReflectionUtil.nms("World");
-@@ -52,9 +52,9 @@ public class ClientChunks extends StoredObject {
-     public List<Object> transformMapChunkBulk(Object packet) {
+-            mapChunkBulkRef = new ReflectionUtil.ClassReflection(NMSUtil.nms("PacketPlayOutMapChunkBulk"));
+-            mapChunkRef = new ReflectionUtil.ClassReflection(NMSUtil.nms("PacketPlayOutMapChunk"));
++            mapChunkBulkRef = new ReflectionUtil.ClassReflection(NMSUtil.nms("network.play.server.S26PacketMapChunkBulk")); //PacketPlayOutMapChunkBulk
++            mapChunkRef = new ReflectionUtil.ClassReflection(NMSUtil.nms("network.play.server.S21PacketChunkData")); //PacketPlayOutMapChunk
+             if (((ViaVersionPlugin) Via.getPlatform()).isSpigot()) {
+                 obfuscateRef = Class.forName("org.spigotmc.AntiXray").getMethod("obfuscate", int.class, int.class, int.class, byte[].class, NMSUtil.nms("World"));
+             }
+@@ -36,9 +36,9 @@ public class BukkitViaBulkChunkTranslator extends BulkChunkTranslatorProvider {
+     public List<Object> transformMapChunkBulk(Object packet, ClientChunks clientChunks) {
          List<Object> list = Lists.newArrayList();
          try {
 -            int[] xcoords = mapChunkBulkRef.getFieldValue("a", packet, int[].class);
@@ -121,9 +85,9 @@ index 153b479..9677d42 100644
 +            int[] zcoords = mapChunkBulkRef.getFieldValue("field_149264_b", packet, int[].class); //b
 +            Object[] chunkMaps = mapChunkBulkRef.getFieldValue("field_179755_c", packet, Object[].class); //c
  
-             if (ViaVersion.getConfig().isAntiXRay() && ViaVersion.getInstance().isSpigot()) { //Spigot anti-xray patch
+             if (Via.getConfig().isAntiXRay() && ((ViaVersionPlugin) Via.getPlatform()).isSpigot()) { //Spigot anti-xray patch
                  try {
-@@ -78,10 +78,10 @@ public class ClientChunks extends StoredObject {
+@@ -62,10 +62,10 @@ public class BukkitViaBulkChunkTranslator extends BulkChunkTranslatorProvider {
                  int z = zcoords[i];
                  Object chunkMap = chunkMaps[i];
                  Object chunkPacket = mapChunkRef.newInstance();
@@ -135,28 +99,51 @@ index 153b479..9677d42 100644
 +                mapChunkRef.setFieldValue("field_149282_b", chunkPacket, z); //b
 +                mapChunkRef.setFieldValue("field_179758_c", chunkPacket, chunkMap); //c
 +                mapChunkRef.setFieldValue("field_149279_g", chunkPacket, true); //d // Chunk bulk chunks are always ground-up
-                 bulkChunks.add(toLong(x, z)); // Store for later
+                 clientChunks.getBulkChunks().add(ClientChunks.toLong(x, z)); // Store for later
                  list.add(chunkPacket);
              }
-diff --git a/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java b/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java
-index 307ae26..caab358 100644
---- a/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java
-+++ b/src/main/java/us/myles/ViaVersion/util/ReflectionUtil.java
-@@ -1,8 +1,9 @@
- package us.myles.ViaVersion.util;
+@@ -77,7 +77,7 @@ public class BukkitViaBulkChunkTranslator extends BulkChunkTranslatorProvider {
  
- import com.google.common.collect.Maps;
--import org.bukkit.Bukkit;
+     @Override
+     public boolean isFiltered(Class<?> packetClass) {
+-        return packetClass.getName().endsWith("PacketPlayOutMapChunkBulk");
++        return packetClass.getName().endsWith("S26PacketMapChunkBulk"); //PacketPlayOutMapChunkBulk
+     }
+ 
+     @Override
+diff --git a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaMovementTransmitter.java b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaMovementTransmitter.java
+index 4c9147d..115d517 100644
+--- a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaMovementTransmitter.java
++++ b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/providers/BukkitViaMovementTransmitter.java
+@@ -28,7 +28,7 @@ public class BukkitViaMovementTransmitter extends MovementTransmitterProvider {
+ 
+         Class<?> idlePacketClass;
+         try {
+-            idlePacketClass = NMSUtil.nms("PacketPlayInFlying");
++            idlePacketClass = NMSUtil.nms("network.play.client.C03PacketPlayer"); //PacketPlayInFlying
+         } catch (ClassNotFoundException e) {
+             return; // We'll hope this is 1.9.4+
+         }
+@@ -36,7 +36,7 @@ public class BukkitViaMovementTransmitter extends MovementTransmitterProvider {
+             idlePacket = idlePacketClass.newInstance();
+             idlePacket2 = idlePacketClass.newInstance();
+ 
+-            Field flying = idlePacketClass.getDeclaredField("f");
++            Field flying = idlePacketClass.getDeclaredField("field_149474_g"); //f
+             flying.setAccessible(true);
+ 
+             flying.set(idlePacket2, true);
+diff --git a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/util/NMSUtil.java b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/util/NMSUtil.java
+index d01884e..bcaf2a7 100644
+--- a/bukkit/src/main/java/us/myles/ViaVersion/bukkit/util/NMSUtil.java
++++ b/bukkit/src/main/java/us/myles/ViaVersion/bukkit/util/NMSUtil.java
+@@ -1,20 +1,21 @@
+ package us.myles.ViaVersion.bukkit.util;
  
 +import org.apache.commons.lang.NotImplementedException;
-+import org.bukkit.Bukkit;
- import java.lang.reflect.Field;
- import java.lang.reflect.InvocationTargetException;
- import java.lang.reflect.Method;
-@@ -11,19 +12,19 @@ import java.util.Collections;
- import java.util.Map;
+ import org.bukkit.Bukkit;
  
- public class ReflectionUtil {
+ public class NMSUtil {
 -    private static String BASE = Bukkit.getServer().getClass().getPackage().getName();
 -    private static String NMS = BASE.replace("org.bukkit.craftbukkit", "net.minecraft.server");
 +    //private static String BASE = Bukkit.getServer().getClass().getPackage().getName();
@@ -176,8 +163,7 @@ index 307ae26..caab358 100644
 -        return BASE.substring(BASE.lastIndexOf('.') + 1);
 +        throw new NotImplementedException("CANTFIX");
      }
- 
-     public static Object invokeStatic(Class<?> clazz, String method) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+ }
 -- 
 2.10.0
 

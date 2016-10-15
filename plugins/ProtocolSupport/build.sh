@@ -25,5 +25,5 @@ git commit -m "Initial Srg2Source Remap"
 git am ../*.patch
 
 ./gradlew build || exit 1
-mv target/* ../../../build/
+cp target/* ../../../build/
 rm ../combined.srg ../ProtocolSupport.range

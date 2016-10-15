@@ -8,8 +8,12 @@ if [ ! -d source ]; then
 fi
 
 cd source
-git reset origin/master --hard
+git reset origin/1.11-DEV --hard
+git checkout 1.11-DEV
+git pull
 
 git am ../*.patch
+
+mvn clean
 mvn install
-mv target/ViaVersion* ../../../build
+cp jar/target/ViaVersion* ../../../build
