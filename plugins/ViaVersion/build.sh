@@ -8,8 +8,8 @@ if [ ! -d source ]; then
 fi
 
 cd source
-git reset origin/1.11-DEV --hard
-git checkout 1.11-DEV
+git reset origin/master --hard
+git checkout master
 git pull
 
 git am ../*.patch

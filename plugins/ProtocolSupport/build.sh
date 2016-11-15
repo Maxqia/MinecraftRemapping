@@ -13,6 +13,7 @@ fi
 cd source
 git am --abort
 git reset origin/master --hard
+git checkout 7cb49501e164431e443e45b227c9cc14bde5f3d1
 git pull
 ./gradlew clean
 
