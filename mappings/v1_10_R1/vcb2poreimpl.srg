@@ -1,3 +1,4 @@
+PK: org/bukkit/craftbukkit/v1_10_R1 blue/lapis/pore/impl
 CL: org/bukkit/craftbukkit/v1_10_R1/TrigMath blue/lapis/pore/impl/TrigMath
 CL: org/bukkit/craftbukkit/v1_10_R1/CraftEffect blue/lapis/pore/impl/PoreEffect
 CL: org/bukkit/craftbukkit/v1_10_R1/CraftChunkSnapshot blue/lapis/pore/impl/PoreChunkSnapshot

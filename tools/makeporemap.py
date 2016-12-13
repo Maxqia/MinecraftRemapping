@@ -15,6 +15,7 @@ version = "impl"
 if len(sys.argv) >= 3:
     version = sys.argv[2]
 
+print("PK: org/bukkit/craftbukkit/" + version + " blue/lapis/pore/impl")
 for path, subdirs, files in os.walk(sys.argv[1]):
     for x in files:
         line = os.path.relpath(os.path.join(path, x), os.path.dirname(sys.argv[1]))
@@ -24,4 +25,5 @@ for path, subdirs, files in os.walk(sys.argv[1]):
             beforeLine = line.replace("org/bukkit/craftbukkit", "org/bukkit/craftbukkit/" + version)
             line = line.replace("org/bukkit/craftbukkit", "blue/lapis/pore/impl")
             line = line.replace("Craft", "Pore")
+            line = line.replace("PoreIconCache", "PoreCachedServerIcon") # a correction, might make this a loop one day though
             print("CL: " + beforeLine + " " + line)
