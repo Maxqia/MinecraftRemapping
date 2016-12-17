@@ -2973,7 +2973,7 @@ CL: net/minecraft/realms/RealmsSliderButton net/minecraft/realms/RealmsSliderBut
 CL: net/minecraft/realms/RealmsVertexFormat net/minecraft/realms/RealmsVertexFormat
 CL: net/minecraft/realms/RealmsVertexFormatElement net/minecraft/realms/RealmsVertexFormatElement
 CL: net/minecraft/realms/Tezzelator net/minecraft/realms/Tezzelator
-CL: net/minecraft/server/MinecraftServer net/minecraft/server/MinecraftServer
+CL: net/minecraft/server/v1_11_R1/MinecraftServer net/minecraft/server/MinecraftServer
 CL: net/minecraft/server/MinecraftServer$1 net/minecraft/server/MinecraftServer$1
 CL: net/minecraft/server/MinecraftServer$2 net/minecraft/server/MinecraftServer$2
 CL: net/minecraft/server/MinecraftServer$3 net/minecraft/server/MinecraftServer$3

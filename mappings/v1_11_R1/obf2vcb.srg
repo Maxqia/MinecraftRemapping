@@ -1,6 +1,4 @@
-# THESE ARE AUTOMATICALLY GENERATED MAPPINGS BETWEEN bukkit-1.11.csrg and itself, using Maxqia's MappingPrinter
-# THEY WERE GENERATED ON 12/13/16 9:04 PM USING Special Source (c) md_5 2012-2013.
-# PLEASE DO NOT REMOVE THIS HEADER!
+# Generated using Maxqia's MappingPrinter
 
 CL: a net/minecraft/server/v1_11_R1/EnumChatFormat
 CL: aa net/minecraft/server/v1_11_R1/CommandEffect
@@ -1301,6 +1299,7 @@ CL: na net/minecraft/server/v1_11_R1/WhiteList
 CL: nb net/minecraft/server/v1_11_R1/WhiteListEntry
 CL: nd net/minecraft/server/v1_11_R1/RemoteStatusReply
 CL: ne net/minecraft/server/v1_11_R1/StatusChallengeUtils
+CL: net/minecraft/server/MinecraftServer net/minecraft/server/v1_11_R1/MinecraftServer
 CL: nf net/minecraft/server/v1_11_R1/RemoteControlCommandListener
 CL: nh net/minecraft/server/v1_11_R1/RemoteConnectionThread
 CL: ni net/minecraft/server/v1_11_R1/RemoteStatusListener
