@@ -1,0 +1,6 @@
+How to update :
+Change package.srg to the versioned build
+Remap CB w/o at translation
+Update CB mapped jar's metainf to the actual MinecraftServer
+Compare with custom srgtools
+Integrate MCP with srgtools
