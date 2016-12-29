@@ -1,0 +1,5 @@
+# SRG additions
+FD: net/minecraft/server/v1_11_R1/EntityLiving/collides net/minecraft/entity/Entity/collision
+
+# AT additions
+public org.spongepowered.common.mixin.core.entity.MixinEntity collision

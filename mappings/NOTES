@@ -1,6 +1,9 @@
 How to update :
 Change package.srg to the versioned build
-Remap CB w/o at translation
-Update CB mapped jar's metainf to the actual MinecraftServer
+Remap CB w/o AT translation using Spigot's BuildTools
+Update CB mapped jar's METAINF to the actual MinecraftServer
 Compare with custom srgtools
 Integrate MCP with srgtools
+Generate vcb2poreimpl.srg using makeporemap.py
+Combine vcb2poreimpl with vcb2srg to make vcb2pore
+Apply Additions to vcb2pore.srg
