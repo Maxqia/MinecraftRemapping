@@ -1,5 +1,8 @@
 # SRG additions
 FD: net/minecraft/server/v1_11_R1/EntityLiving/collides net/minecraft/entity/Entity/collision
+MD: org/bukkit/craftbukkit/v1_11_R1/entity/CraftEntity/getHandle ()Lnet/minecraft/server/v1_11_R1/Entity blue/lapis/pore/impl/entity/PoreEntity/getMCHandle ()Lnet/minecraft/entity/Entity
+MD: org/bukkit/craftbukkit/v1_11_R1/entity/CraftPlayer/getHandle ()Lnet/minecraft/server/v1_11_R1/EntityPlayer blue/lapis/pore/impl/entity/PorePlayer/getMCHandle ()Lnet/minecraft/entity/player/EntityPlayerMP
+MD: org/bukkit/craftbukkit/v1_11_R1/CraftWorld/getHandle ()Lnet/minecraft/server/v1_11_R1/WorldServer blue/lapis/pore/impl/PoreWorld/getMCHandle ()Lnet/minecraft/world/WorldServer
 
 # AT additions
 public org.spongepowered.common.mixin.core.entity.MixinEntity collision
